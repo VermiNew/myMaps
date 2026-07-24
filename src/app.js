@@ -6,6 +6,23 @@ const h = React.createElement;
 const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const DEFAULT_ORIGIN = [21.0374, 52.2518];
 
+function formatDuration(seconds) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} godz. ${minutes % 60} min`;
+}
+
+function formatDistance(meters) {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
+function getManeuverType(instruction, isLast) {
+  if (isLast) return 'arrive';
+  const normalizedInstruction = instruction.toLocaleLowerCase('pl');
+  if (normalizedInstruction.includes('lewo')) return 'left';
+  if (normalizedInstruction.includes('prawo')) return 'right';
+  return 'straight';
+}
+
 const DESTINATIONS = [
   {
     id: 'museum',
@@ -241,6 +258,7 @@ class MapCanvas extends React.Component {
       this.map.touchZoomRotate.disableRotation();
       this.map.once('load', () => {
         this.updateMarkers();
+        this.updateRoute();
         this.fitMap();
       });
       this.map.on('error', (event) => {
@@ -260,6 +278,10 @@ class MapCanvas extends React.Component {
     if (previousProps.destination !== this.props.destination
       || previousProps.userCoordinates !== this.props.userCoordinates) {
       this.updateMarkers();
+      this.fitMap();
+    }
+    if (previousProps.route !== this.props.route) {
+      this.updateRoute();
       this.fitMap();
     }
     if (previousProps.mapZoom !== this.props.mapZoom) {
@@ -310,15 +332,57 @@ class MapCanvas extends React.Component {
     }).setLngLat(this.props.destination.coordinates).addTo(this.map);
   }
 
+  updateRoute() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    const routeData = this.props.route || {
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: [] },
+      properties: {}
+    };
+    const routeSource = this.map.getSource('route');
+    if (routeSource) {
+      routeSource.setData(routeData);
+      return;
+    }
+    this.map.addSource('route', { type: 'geojson', data: routeData });
+    this.map.addLayer({
+      id: 'route-outline',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 11,
+        'line-opacity': 0.92
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    });
+    this.map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#2d6cf6',
+        'line-width': 6
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    });
+  }
+
   fitMap() {
     if (!this.map || !this.map.loaded()) {
       return;
     }
     this.props.onResetMap();
-    this.map.fitBounds([
-      this.getOrigin(),
-      this.props.destination.coordinates
-    ], {
+    const routeCoordinates = this.props.route?.geometry?.coordinates || [];
+    const bounds = routeCoordinates.length > 0
+      ? routeCoordinates.reduce(
+        (routeBounds, coordinate) => routeBounds.extend(coordinate),
+        new window.maplibregl.LngLatBounds(routeCoordinates[0], routeCoordinates[0])
+      )
+      : new window.maplibregl.LngLatBounds(this.getOrigin(), this.props.destination.coordinates);
+    this.map.fitBounds(bounds, {
       padding: { top: 110, right: 100, bottom: 150, left: 100 },
       maxZoom: 14,
       duration: 420
@@ -406,6 +470,10 @@ class App extends React.Component {
       searchResults: [],
       searchStatus: 'idle',
       searchMessage: '',
+      route: null,
+      routeManeuvers: null,
+      routeStatus: 'idle',
+      routeMessage: '',
       recentDestinationIds: ['museum', 'park'],
       navigationActive: false,
       navigationPaused: false,
@@ -431,9 +499,11 @@ class App extends React.Component {
     this.currentAudio = null;
     this.searchTimer = null;
     this.searchRequest = null;
+    this.routeRequest = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
+    this.calculateRoute = this.calculateRoute.bind(this);
     this.advanceNavigation = this.advanceNavigation.bind(this);
     this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
     this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
@@ -455,6 +525,7 @@ class App extends React.Component {
     document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
     this.registerServiceWorker();
+    this.calculateRoute();
   }
 
   componentWillUnmount() {
@@ -463,6 +534,7 @@ class App extends React.Component {
     window.clearInterval(this.navigationTimer);
     window.clearTimeout(this.searchTimer);
     this.searchRequest?.abort();
+    this.routeRequest?.abort();
     this.releaseMediaStream();
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -528,11 +600,62 @@ class App extends React.Component {
       searchOpen: false,
       searchStatus: 'idle',
       searchMessage: '',
+      route: null,
+      routeManeuvers: null,
+      routeStatus: 'loading',
+      routeMessage: '',
       recentDestinationIds: [
         destination.id,
         ...state.recentDestinationIds.filter((id) => id !== destination.id)
       ].slice(0, 3)
-    }));
+    }), this.calculateRoute);
+  }
+
+  async calculateRoute() {
+    this.routeRequest?.abort();
+    this.routeRequest = new AbortController();
+    const start = this.state.userCoordinates
+      ? [this.state.userCoordinates.longitude, this.state.userCoordinates.latitude]
+      : DEFAULT_ORIGIN;
+    const end = this.state.destination.coordinates;
+    this.setState({ routeStatus: 'loading', routeMessage: '' });
+    try {
+      const response = await fetch(
+        `/api/route?start=${start.join(',')}&end=${end.join(',')}`,
+        { signal: this.routeRequest.signal }
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.features?.[0]) {
+        throw new Error(payload.error || 'Nie udało się wyznaczyć trasy.');
+      }
+      const route = payload.features[0];
+      const summary = route.properties.summary;
+      const steps = route.properties.segments?.[0]?.steps || [];
+      const routeManeuvers = steps.map((step, index) => ({
+        type: getManeuverType(step.instruction, index === steps.length - 1),
+        distance: formatDistance(step.distance),
+        instruction: step.instruction
+      }));
+      this.setState((state) => ({
+        route,
+        routeManeuvers,
+        routeStatus: 'ready',
+        routeMessage: '',
+        destination: {
+          ...state.destination,
+          time: formatDuration(summary.duration),
+          distance: formatDistance(summary.distance)
+        }
+      }));
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      this.setState({
+        route: null,
+        routeManeuvers: null,
+        routeStatus: 'error',
+        routeMessage: error.message
+      });
+    }
   }
 
   handleSearchChange(event) {
@@ -611,12 +734,13 @@ class App extends React.Component {
     navigator.geolocation.getCurrentPosition((position) => {
       this.setState({
         locationStatus: 'ready',
-        locationMessage: `Dokładność około ${Math.round(position.coords.accuracy)} m · trasa demonstracyjna`,
+        locationMessage: `Dokładność około ${Math.round(position.coords.accuracy)} m`,
         userCoordinates: {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
-        }
-      });
+        },
+        routeStatus: 'loading'
+      }, this.calculateRoute);
     }, (error) => {
       const permissionDenied = error && error.code === 1;
       this.setState({
@@ -1211,10 +1335,17 @@ class App extends React.Component {
     return h('div', { className: 'route-summary' },
       h('div', null,
         h('span', { className: 'summary-label' }, destination.name),
-        h('strong', null, destination.time),
-        h('small', null, `${destination.distance} · bez opłat`)
+        h('strong', null, this.state.routeStatus === 'loading' ? 'Wyznaczam…' : destination.time),
+        h('small', null, this.state.routeStatus === 'error'
+          ? this.state.routeMessage
+          : `${destination.distance} · bez opłat`)
       ),
-      h('button', { className: 'primary-button', type: 'button', onClick: this.startNavigation },
+      h('button', {
+        className: 'primary-button',
+        type: 'button',
+        onClick: this.startNavigation,
+        disabled: this.state.routeStatus !== 'ready'
+      },
         h('span', null, 'Rozpocznij'),
         h(Icon, { name: 'arrow', size: 18 })
       )
@@ -1275,13 +1406,15 @@ class App extends React.Component {
       tripComplete,
       locationStatus,
       userCoordinates,
+      route,
+      routeManeuvers,
       mapZoom,
       menuOpen
     } = this.state;
     const recentDestinations = recentDestinationIds
       .map((id) => DESTINATIONS.find((item) => item.id === id))
       .filter(Boolean);
-    const maneuvers = MANEUVERS[destination.id] || MANEUVERS.park;
+    const maneuvers = routeManeuvers || MANEUVERS[destination.id] || MANEUVERS.park;
     const currentManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
     const navigationMode = navigationActive || tripComplete;
 
@@ -1320,6 +1453,7 @@ class App extends React.Component {
           tripComplete,
           locationStatus,
           userCoordinates,
+          route,
           mapZoom,
           onZoomIn: () => this.adjustMapZoom(0.15),
           onZoomOut: () => this.adjustMapZoom(-0.15),

@@ -71,11 +71,62 @@ async function handleGeocoding(requestUrl, response) {
   }
 }
 
+function readCoordinates(value) {
+  const coordinates = value?.split(',').map(Number);
+  return coordinates?.length === 2 && coordinates.every(Number.isFinite) ? coordinates : null;
+}
+
+async function handleRouting(requestUrl, response) {
+  const start = readCoordinates(requestUrl.searchParams.get('start'));
+  const end = readCoordinates(requestUrl.searchParams.get('end'));
+  if (!start || !end) {
+    sendJson(response, 400, { error: 'Nieprawidłowe współrzędne trasy.' });
+    return;
+  }
+  if (!openRouteServiceApiKey) {
+    sendJson(response, 503, { error: 'Wyznaczanie tras nie zostało skonfigurowane.' });
+    return;
+  }
+
+  try {
+    const upstreamResponse = await fetch(
+      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: openRouteServiceApiKey,
+          'Content-Type': 'application/json',
+          'User-Agent': 'MojaMapa/1.0'
+        },
+        body: JSON.stringify({
+          coordinates: [start, end],
+          instructions: true,
+          language: 'pl'
+        })
+      }
+    );
+    const payload = await upstreamResponse.json();
+    if (!upstreamResponse.ok) {
+      sendJson(response, upstreamResponse.status, {
+        error: 'Nie udało się wyznaczyć tej trasy.'
+      });
+      return;
+    }
+    sendJson(response, 200, payload);
+  } catch {
+    sendJson(response, 502, { error: 'Nie udało się połączyć z usługą tras.' });
+  }
+}
+
 createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host}`);
   const pathname = decodeURIComponent(requestUrl.pathname);
   if (pathname === '/api/geocode') {
     await handleGeocoding(requestUrl, response);
+    return;
+  }
+  if (pathname === '/api/route') {
+    await handleRouting(requestUrl, response);
     return;
   }
 
