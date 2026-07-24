@@ -392,6 +392,7 @@ class App extends React.Component {
     window.addEventListener('keydown', this.handleGlobalShortcut);
     document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
+    this.registerServiceWorker();
   }
 
   componentWillUnmount() {
@@ -439,6 +440,18 @@ class App extends React.Component {
   handleDocumentPointerDown(event) {
     if (this.state.menuOpen && this.menuContainer && !this.menuContainer.contains(event.target)) {
       this.setState({ menuOpen: false });
+    }
+  }
+
+  registerServiceWorker() {
+    const canRegister = 'serviceWorker' in navigator
+      && window.isSecureContext
+      && window.location.protocol !== 'file:';
+
+    if (canRegister) {
+      navigator.serviceWorker.register('./service-worker.js').catch(() => {
+        // Offline support is optional; the application remains usable without registration.
+      });
     }
   }
 

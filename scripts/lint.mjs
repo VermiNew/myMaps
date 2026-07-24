@@ -3,7 +3,7 @@ import { extname, join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = new URL('..', import.meta.url).pathname;
-const sourceDirectories = ['src', 'scripts'];
+const sourceDirectories = ['src', 'scripts', 'public'];
 const checkedExtensions = new Set(['.js', '.mjs']);
 const errors = [];
 

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ikona MojaMapa">
+  <rect width="512" height="512" rx="132" fill="#172234"/>
+  <path d="M142 348a62 62 0 1 0 0-124 62 62 0 0 0 0 124Zm228-142a62 62 0 1 0 0-124 62 62 0 0 0 0 124ZM194 286c92 0 20-142 132-142" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="142" cy="286" r="18" fill="#2d6cf6"/>
+  <circle cx="370" cy="144" r="18" fill="#b9d8be"/>
+</svg>
