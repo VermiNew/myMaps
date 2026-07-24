@@ -11,5 +11,8 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs && node scripts/serve.mjs dist 4173",
     "preview": "node scripts/serve.mjs dist 4173"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.0.0"
   }
 }
