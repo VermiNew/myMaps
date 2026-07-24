@@ -115,6 +115,9 @@ const VOICE_PHRASES = [
   { id: 'right', label: 'Skręć w prawo', description: 'Odtwarzane przed skrętem w prawo' },
   { id: 'arrive', label: 'Jesteś na miejscu', description: 'Odtwarzane po dotarciu do celu' }
 ];
+const DEFAULT_VOICE_CLIPS = Object.fromEntries(
+  VOICE_PHRASES.map((phrase) => [phrase.id, `./audio/default-voice/${phrase.id}.mp3`])
+);
 
 const VOICE_DATABASE_NAME = 'mojamapa-voice';
 const VOICE_STORE_NAME = 'clips';
@@ -882,17 +885,15 @@ class App extends React.Component {
 
   playVoiceClip(phraseId) {
     const clip = this.state.voiceClips[phraseId];
-    if (!clip) {
+    const audioUrl = clip?.url || DEFAULT_VOICE_CLIPS[phraseId];
+    if (!audioUrl) {
       return Promise.reject(new Error('Voice clip is unavailable.'));
     }
 
     if (this.currentAudio) {
       this.currentAudio.pause();
     }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    this.currentAudio = new Audio(clip.url);
+    this.currentAudio = new Audio(audioUrl);
     return this.currentAudio.play();
   }
 
@@ -913,27 +914,14 @@ class App extends React.Component {
     }
   }
 
-  speakWithSystem(instruction) {
-    if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') {
-      return;
-    }
-
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new window.SpeechSynthesisUtterance(instruction);
-    utterance.lang = 'pl-PL';
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+  announceInstruction(instruction, type) {
+    this.playVoiceClip(type).catch(() => {
+      this.setState({ voiceMessage: `Nie udało się odtworzyć komunikatu: ${instruction}` });
+    });
   }
 
-  announceInstruction(instruction, type) {
-    if (this.state.voiceClips[type]) {
-      this.playVoiceClip(type).catch(() => this.speakWithSystem(instruction));
-      return;
-    }
-    this.speakWithSystem(instruction);
+  getActiveManeuvers() {
+    return this.state.routeManeuvers || MANEUVERS[this.state.destination.id] || MANEUVERS.park;
   }
 
   scheduleNavigationStep() {
@@ -942,7 +930,7 @@ class App extends React.Component {
   }
 
   startNavigation() {
-    const firstManeuver = MANEUVERS[this.state.destination.id][0];
+    const firstManeuver = this.getActiveManeuvers()[0];
     this.setState({
       navigationActive: true,
       navigationPaused: false,
@@ -956,7 +944,7 @@ class App extends React.Component {
   }
 
   advanceNavigation() {
-    const maneuvers = MANEUVERS[this.state.destination.id];
+    const maneuvers = this.getActiveManeuvers();
     const nextIndex = this.state.stepIndex + 1;
 
     if (nextIndex >= maneuvers.length) {
@@ -1130,8 +1118,8 @@ class App extends React.Component {
     const statusText = customVoiceActive
       ? 'Teraz odtwarzany jest Twój głos'
       : clipCount > 0
-        ? `${clipCount}/4 ${clipCount === 1 ? 'nagranie gotowe' : 'nagrania gotowe'}`
-        : 'Nagraj cztery podstawowe komunikaty';
+        ? `Głos gotowy · ${clipCount}/4 nagrane lokalnie`
+        : 'Twój wygenerowany głos jest gotowy';
 
     return h('button', {
       className: `voice-card${clipCount > 0 ? ' is-configured' : ''}`,
@@ -1227,9 +1215,9 @@ class App extends React.Component {
       }, h(Icon, { name: 'close', size: 20 }))
     ),
     h('div', { className: 'voice-studio-progress' },
-      h('span', null, `${clipCount} z 4 gotowe`),
+      h('span', null, '4 z 4 gotowe'),
       h('div', { className: 'voice-progress-track', 'aria-hidden': true },
-        h('span', { style: { width: `${clipCount * 25}%` } })
+        h('span', { style: { width: '100%' } })
       )
     ),
     h('div', { className: 'voice-phrase-list' },
@@ -1248,7 +1236,7 @@ class App extends React.Component {
           h('small', null, isRecording ? 'Mów teraz…' : phrase.description)
         ),
         h('span', { className: 'phrase-actions' },
-          clipReady ? h('button', {
+          h('button', {
             className: 'phrase-action-button',
             type: 'button',
             onClick: () => this.playVoiceClip(phrase.id).catch(() => {
@@ -1256,7 +1244,7 @@ class App extends React.Component {
             }),
             disabled: Boolean(this.state.recordingPhraseId),
             'aria-label': `Odtwórz: ${phrase.label}`
-          }, h(Icon, { name: 'volume', size: 18 })) : null,
+          }, h(Icon, { name: 'volume', size: 18 })),
           h('button', {
             className: `record-button${isRecording ? ' is-recording' : ''}`,
             type: 'button',

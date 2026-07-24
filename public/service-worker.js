@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'mojamapa-v2';
+const CACHE_NAME = 'mojamapa-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,10 @@ const CORE_ASSETS = [
   './src/styles.css',
   './src/bootstrap.mjs',
   './src/app.js',
+  './audio/default-voice/arrive.mp3',
+  './audio/default-voice/left.mp3',
+  './audio/default-voice/right.mp3',
+  './audio/default-voice/straight.mp3',
   './vendor/maplibre-gl.css',
   './vendor/maplibre-gl.mjs',
   './vendor/maplibre-gl-shared.mjs',
