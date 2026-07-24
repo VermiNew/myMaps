@@ -28,8 +28,10 @@ async function collectFiles(directory) {
 for (const directory of sourceDirectories) {
   for (const file of await collectFiles(directory)) {
     const check = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
-    if (check.status !== 0) {
-      errors.push(check.stderr.trim());
+    if (check.error) {
+      errors.push(`${relative(root, file)} could not be checked: ${check.error.message}`);
+    } else if (check.status !== 0) {
+      errors.push((check.stderr || check.stdout || `${relative(root, file)} failed syntax validation.`).trim());
     }
 
     const content = await readFile(file, 'utf8');
