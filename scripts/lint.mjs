@@ -1,8 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const sourceDirectories = ['src', 'scripts', 'public'];
 const checkedExtensions = new Set(['.js', '.mjs']);
 const errors = [];
