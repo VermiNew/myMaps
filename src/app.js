@@ -209,13 +209,30 @@ function Icon({ name, size = 20 }) {
   }, icons[name]);
 }
 
-function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, tripComplete, locationStatus }) {
+function MapCanvas({
+  destination,
+  navigationActive,
+  stepIndex,
+  currentManeuver,
+  tripComplete,
+  locationStatus,
+  mapZoom,
+  onZoomIn,
+  onZoomOut,
+  onResetMap
+}) {
   const routePath = destination.routePath;
   const endpoint = destination.endpoint;
   const currentPoint = destination.navigationPoints[Math.min(stepIndex, destination.navigationPoints.length - 1)];
 
   return h('div', { className: 'map-canvas', 'aria-label': 'Mapa demonstracyjna Warszawy' },
-    h('svg', { className: 'map-art', viewBox: '0 0 1200 800', role: 'img', 'aria-label': 'Stylizowana mapa ulic' },
+    h('svg', {
+      className: 'map-art',
+      viewBox: '0 0 1200 800',
+      role: 'img',
+      'aria-label': 'Stylizowana mapa ulic',
+      style: { transform: `scale(${mapZoom})` }
+    },
       h('defs', null,
         h('pattern', { id: 'minor-grid', width: 52, height: 52, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(16)' },
           h('path', { d: 'M 52 0 L 0 0 0 52', fill: 'none', stroke: '#d9d7d0', strokeWidth: 1 })
@@ -289,11 +306,29 @@ function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, 
       )
       : null,
     h('div', { className: 'map-toolbar' },
-      h('button', { className: 'map-tool', type: 'button', 'aria-label': 'Wyśrodkuj mapę' }, h(Icon, { name: 'compass' })),
+      h('button', {
+        className: `map-tool${mapZoom !== 1 ? ' is-active' : ''}`,
+        type: 'button',
+        onClick: onResetMap,
+        'aria-label': 'Przywróć widok całej trasy'
+      }, h(Icon, { name: 'compass' })),
       h('div', { className: 'zoom-group' },
-        h('button', { className: 'map-tool', type: 'button', 'aria-label': 'Powiększ mapę' }, '+'),
-        h('button', { className: 'map-tool', type: 'button', 'aria-label': 'Pomniejsz mapę' }, '−')
-      )
+        h('button', {
+          className: 'map-tool',
+          type: 'button',
+          onClick: onZoomIn,
+          disabled: mapZoom >= 1.3,
+          'aria-label': 'Powiększ mapę'
+        }, '+'),
+        h('button', {
+          className: 'map-tool',
+          type: 'button',
+          onClick: onZoomOut,
+          disabled: mapZoom <= 0.85,
+          'aria-label': 'Pomniejsz mapę'
+        }, '−')
+      ),
+      h('span', { className: 'zoom-status', 'aria-live': 'polite' }, `${Math.round(mapZoom * 100)}%`)
     ),
     locationStatus === 'ready' && !navigationActive && !tripComplete
       ? h('div', { className: 'location-confirmation' },
@@ -323,7 +358,8 @@ class App extends React.Component {
       voiceMessage: '',
       locationStatus: 'idle',
       locationMessage: '',
-      userCoordinates: null
+      userCoordinates: null,
+      mapZoom: 1
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
@@ -339,6 +375,7 @@ class App extends React.Component {
     this.openVoiceStudio = this.openVoiceStudio.bind(this);
     this.playVoiceClip = this.playVoiceClip.bind(this);
     this.locateUser = this.locateUser.bind(this);
+    this.resetMapView = this.resetMapView.bind(this);
     this.startNavigation = this.startNavigation.bind(this);
     this.startVoiceRecording = this.startVoiceRecording.bind(this);
     this.stopVoiceRecording = this.stopVoiceRecording.bind(this);
@@ -430,6 +467,16 @@ class App extends React.Component {
       timeout: 10000,
       maximumAge: 30000
     });
+  }
+
+  adjustMapZoom(delta) {
+    this.setState((state) => ({
+      mapZoom: Math.min(1.3, Math.max(0.85, Number((state.mapZoom + delta).toFixed(2))))
+    }));
+  }
+
+  resetMapView() {
+    this.setState({ mapZoom: 1 });
   }
 
   async loadVoiceClips() {
@@ -1001,7 +1048,8 @@ class App extends React.Component {
       navigationActive,
       stepIndex,
       tripComplete,
-      locationStatus
+      locationStatus,
+      mapZoom
     } = this.state;
     const recentDestinations = recentDestinationIds
       .map((id) => DESTINATIONS.find((item) => item.id === id))
@@ -1031,7 +1079,11 @@ class App extends React.Component {
           stepIndex,
           currentManeuver,
           tripComplete,
-          locationStatus
+          locationStatus,
+          mapZoom,
+          onZoomIn: () => this.adjustMapZoom(0.15),
+          onZoomOut: () => this.adjustMapZoom(-0.15),
+          onResetMap: this.resetMapView
         }),
         this.renderMapFooter(destination, maneuvers)
       ),

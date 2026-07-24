@@ -701,6 +701,10 @@ kbd {
   overflow: hidden;
 }
 
+.map-canvas {
+  background: #eceae3;
+}
+
 .map-canvas,
 .map-art {
   width: 100%;
@@ -710,6 +714,8 @@ kbd {
 .map-art {
   display: block;
   object-fit: cover;
+  transform-origin: center;
+  transition: transform 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
 }
 
 .river {
@@ -779,6 +785,27 @@ kbd {
   height: 43px;
   border-radius: 13px;
   font-size: 23px;
+}
+
+.map-tool.is-active {
+  color: #ffffff;
+  background: var(--blue);
+}
+
+.map-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.zoom-status {
+  justify-self: center;
+  padding: 4px 7px;
+  color: #69727c;
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 7px;
+  font-size: 9px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
 }
 
 .zoom-group {
