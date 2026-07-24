@@ -84,6 +84,72 @@ const MANEUVERS = {
   ]
 };
 
+const VOICE_PHRASES = [
+  { id: 'straight', label: 'Jedź prosto', description: 'Odtwarzane przed jazdą na wprost' },
+  { id: 'left', label: 'Skręć w lewo', description: 'Odtwarzane przed skrętem w lewo' },
+  { id: 'right', label: 'Skręć w prawo', description: 'Odtwarzane przed skrętem w prawo' },
+  { id: 'arrive', label: 'Jesteś na miejscu', description: 'Odtwarzane po dotarciu do celu' }
+];
+
+const VOICE_DATABASE_NAME = 'mojamapa-voice';
+const VOICE_STORE_NAME = 'clips';
+
+function openVoiceDatabase() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) {
+      reject(new Error('IndexedDB is not available.'));
+      return;
+    }
+
+    const request = window.indexedDB.open(VOICE_DATABASE_NAME, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(VOICE_STORE_NAME)) {
+        database.createObjectStore(VOICE_STORE_NAME, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readStoredVoiceClips() {
+  const database = await openVoiceDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(VOICE_STORE_NAME, 'readonly');
+    const request = transaction.objectStore(VOICE_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => database.close();
+  });
+}
+
+async function persistVoiceClip(id, blob) {
+  const database = await openVoiceDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(VOICE_STORE_NAME, 'readwrite');
+    transaction.objectStore(VOICE_STORE_NAME).put({ id, blob, updatedAt: Date.now() });
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function removeVoiceClip(id) {
+  const database = await openVoiceDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(VOICE_STORE_NAME, 'readwrite');
+    transaction.objectStore(VOICE_STORE_NAME).delete(id);
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
 function Icon({ name, size = 20 }) {
   const icons = {
     arrow: h('path', { d: 'M5 12h14M13 6l6 6-6 6' }),
@@ -95,6 +161,7 @@ function Icon({ name, size = 20 }) {
       h('circle', { cx: 12, cy: 12, r: 9 }),
       h('path', { d: 'm15.4 8.6-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2Z' })
     ),
+    close: h('path', { d: 'M6 6l12 12M18 6 6 18' }),
     location: h('g', null,
       h('path', { d: 'M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z' }),
       h('circle', { cx: 12, cy: 10, r: 2.4 })
@@ -117,7 +184,15 @@ function Icon({ name, size = 20 }) {
       h('path', { d: 'm20 20-4-4' })
     ),
     stop: h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 }),
-    straight: h('path', { d: 'M12 20V5m-5 5 5-5 5 5' })
+    straight: h('path', { d: 'M12 20V5m-5 5 5-5 5 5' }),
+    trash: h('g', null,
+      h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
+      h('path', { d: 'M10 11v5M14 11v5' })
+    ),
+    volume: h('g', null,
+      h('path', { d: 'M5 10v4h4l5 4V6L9 10H5Z' }),
+      h('path', { d: 'M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12' })
+    )
   };
 
   return h('svg', {
@@ -232,24 +307,45 @@ class App extends React.Component {
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
-      tripComplete: false
+      tripComplete: false,
+      voiceStudioOpen: false,
+      voiceClips: {},
+      recordingPhraseId: null,
+      voiceMessage: ''
     };
     this.searchInput = null;
+    this.voiceCloseButton = null;
     this.navigationTimer = null;
+    this.mediaRecorder = null;
+    this.mediaStream = null;
+    this.recordingChunks = [];
+    this.currentAudio = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.advanceNavigation = this.advanceNavigation.bind(this);
+    this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
+    this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
+    this.openVoiceStudio = this.openVoiceStudio.bind(this);
+    this.playVoiceClip = this.playVoiceClip.bind(this);
     this.startNavigation = this.startNavigation.bind(this);
+    this.startVoiceRecording = this.startVoiceRecording.bind(this);
+    this.stopVoiceRecording = this.stopVoiceRecording.bind(this);
     this.stopNavigation = this.stopNavigation.bind(this);
     this.toggleNavigationPause = this.toggleNavigationPause.bind(this);
   }
 
   componentDidMount() {
     window.addEventListener('keydown', this.handleGlobalShortcut);
+    this.loadVoiceClips();
   }
 
   componentWillUnmount() {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
     window.clearInterval(this.navigationTimer);
+    this.releaseMediaStream();
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+    }
+    Object.values(this.state.voiceClips).forEach((clip) => window.URL.revokeObjectURL(clip.url));
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -261,6 +357,12 @@ class App extends React.Component {
       event.preventDefault();
       this.searchInput.focus();
       this.setState({ searchOpen: true });
+    }
+
+    if (event.key === 'Escape' && this.state.voiceStudioOpen) {
+      event.preventDefault();
+      this.closeVoiceStudio();
+      return;
     }
 
     if (event.key === 'Escape') {
@@ -283,16 +385,161 @@ class App extends React.Component {
     }));
   }
 
-  announceInstruction(instruction) {
+  async loadVoiceClips() {
+    try {
+      const storedClips = await readStoredVoiceClips();
+      const voiceClips = storedClips.reduce((clips, storedClip) => {
+        clips[storedClip.id] = {
+          blob: storedClip.blob,
+          url: window.URL.createObjectURL(storedClip.blob)
+        };
+        return clips;
+      }, {});
+      this.setState({ voiceClips });
+    } catch (error) {
+      this.setState({ voiceMessage: 'Nagrania będą dostępne po otwarciu aplikacji przez bezpieczne połączenie.' });
+    }
+  }
+
+  openVoiceStudio() {
+    this.setState({ voiceStudioOpen: true, voiceMessage: '' }, () => {
+      if (this.voiceCloseButton) {
+        this.voiceCloseButton.focus();
+      }
+    });
+  }
+
+  closeVoiceStudio() {
+    if (this.state.recordingPhraseId) {
+      this.stopVoiceRecording();
+    }
+    this.setState({ voiceStudioOpen: false });
+  }
+
+  releaseMediaStream() {
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach((track) => track.stop());
+      this.mediaStream = null;
+    }
+  }
+
+  async startVoiceRecording(phraseId) {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function'
+      || typeof window.MediaRecorder !== 'function') {
+      this.setState({ voiceMessage: 'Ta przeglądarka nie obsługuje nagrywania dźwięku.' });
+      return;
+    }
+
+    try {
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.recordingChunks = [];
+      this.mediaRecorder = new window.MediaRecorder(this.mediaStream);
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.recordingChunks.push(event.data);
+        }
+      };
+      this.mediaRecorder.onstop = async () => {
+        const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
+        const blob = new Blob(this.recordingChunks, { type: mimeType });
+        this.releaseMediaStream();
+
+        if (blob.size === 0) {
+          this.setState({ recordingPhraseId: null, voiceMessage: 'Nie udało się zapisać dźwięku. Spróbuj ponownie.' });
+          return;
+        }
+
+        try {
+          await persistVoiceClip(phraseId, blob);
+          this.setState((state) => {
+            const previousClip = state.voiceClips[phraseId];
+            if (previousClip) {
+              window.URL.revokeObjectURL(previousClip.url);
+            }
+            return {
+              voiceClips: {
+                ...state.voiceClips,
+                [phraseId]: { blob, url: window.URL.createObjectURL(blob) }
+              },
+              recordingPhraseId: null,
+              voiceMessage: 'Nagranie zapisane tylko na tym urządzeniu.'
+            };
+          });
+        } catch (error) {
+          this.setState({ recordingPhraseId: null, voiceMessage: 'Nie udało się zapisać nagrania lokalnie.' });
+        }
+      };
+      this.mediaRecorder.start();
+      this.setState({ recordingPhraseId: phraseId, voiceMessage: 'Nagrywanie trwa. Powiedz komunikat naturalnie.' });
+    } catch (error) {
+      this.releaseMediaStream();
+      this.setState({ recordingPhraseId: null, voiceMessage: 'Dostęp do mikrofonu został zablokowany.' });
+    }
+  }
+
+  stopVoiceRecording() {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
+      return;
+    }
+    this.releaseMediaStream();
+    this.setState({ recordingPhraseId: null });
+  }
+
+  playVoiceClip(phraseId) {
+    const clip = this.state.voiceClips[phraseId];
+    if (!clip) {
+      return Promise.reject(new Error('Voice clip is unavailable.'));
+    }
+
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    this.currentAudio = new Audio(clip.url);
+    return this.currentAudio.play();
+  }
+
+  async deleteVoiceClip(phraseId) {
+    try {
+      await removeVoiceClip(phraseId);
+      this.setState((state) => {
+        const clip = state.voiceClips[phraseId];
+        if (clip) {
+          window.URL.revokeObjectURL(clip.url);
+        }
+        const voiceClips = { ...state.voiceClips };
+        delete voiceClips[phraseId];
+        return { voiceClips, voiceMessage: 'Nagranie usunięte z tego urządzenia.' };
+      });
+    } catch (error) {
+      this.setState({ voiceMessage: 'Nie udało się usunąć nagrania.' });
+    }
+  }
+
+  speakWithSystem(instruction) {
     if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') {
       return;
     }
 
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+    }
     window.speechSynthesis.cancel();
     const utterance = new window.SpeechSynthesisUtterance(instruction);
     utterance.lang = 'pl-PL';
     utterance.rate = 0.95;
     window.speechSynthesis.speak(utterance);
+  }
+
+  announceInstruction(instruction, type) {
+    if (this.state.voiceClips[type]) {
+      this.playVoiceClip(type).catch(() => this.speakWithSystem(instruction));
+      return;
+    }
+    this.speakWithSystem(instruction);
   }
 
   scheduleNavigationStep() {
@@ -309,7 +556,7 @@ class App extends React.Component {
       tripComplete: false,
       searchOpen: false
     }, () => {
-      this.announceInstruction(firstManeuver.instruction);
+      this.announceInstruction(firstManeuver.instruction, firstManeuver.type);
       this.scheduleNavigationStep();
     });
   }
@@ -325,7 +572,7 @@ class App extends React.Component {
     }
 
     this.setState({ stepIndex: nextIndex }, () => {
-      this.announceInstruction(maneuvers[nextIndex].instruction);
+      this.announceInstruction(maneuvers[nextIndex].instruction, maneuvers[nextIndex].type);
       if (!this.state.navigationPaused) {
         this.scheduleNavigationStep();
       }
@@ -344,6 +591,9 @@ class App extends React.Component {
 
   stopNavigation() {
     window.clearInterval(this.navigationTimer);
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -465,16 +715,130 @@ class App extends React.Component {
   }
 
   renderVoiceCard() {
-    return h('footer', { className: 'voice-card' },
+    const clipCount = Object.keys(this.state.voiceClips).length;
+    const maneuvers = MANEUVERS[this.state.destination.id];
+    const currentManeuver = maneuvers[Math.min(this.state.stepIndex, maneuvers.length - 1)];
+    const customVoiceActive = this.state.navigationActive && Boolean(this.state.voiceClips[currentManeuver.type]);
+    const statusText = customVoiceActive
+      ? 'Teraz odtwarzany jest Twój głos'
+      : clipCount > 0
+        ? `${clipCount}/4 ${clipCount === 1 ? 'nagranie gotowe' : 'nagrania gotowe'}`
+        : 'Nagraj cztery podstawowe komunikaty';
+
+    return h('button', {
+      className: `voice-card${clipCount > 0 ? ' is-configured' : ''}`,
+      type: 'button',
+      onClick: this.openVoiceStudio,
+      'aria-haspopup': 'dialog'
+    },
       h('span', { className: 'voice-icon' }, h(Icon, { name: 'mic', size: 21 })),
       h('span', { className: 'voice-copy' },
         h('strong', null, 'Twój głos'),
-        h('small', null, this.state.navigationActive
-          ? 'Teraz używany jest głos systemowy'
-          : 'Studio nagrań jest gotowe do konfiguracji')
+        h('small', null, statusText)
       ),
-      h('span', { className: 'status-dot', 'aria-label': 'Nie skonfigurowano' })
+      h('span', {
+        className: 'status-dot',
+        'aria-label': clipCount > 0 ? 'Głos częściowo skonfigurowany' : 'Nie skonfigurowano'
+      })
     );
+  }
+
+  renderVoiceStudio() {
+    if (!this.state.voiceStudioOpen) {
+      return null;
+    }
+
+    const clipCount = Object.keys(this.state.voiceClips).length;
+    return h('div', {
+      className: 'voice-studio-backdrop',
+      role: 'presentation',
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) {
+          this.closeVoiceStudio();
+        }
+      }
+    },
+    h('section', {
+      className: 'voice-studio-dialog',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-labelledby': 'voice-studio-title',
+      onMouseDown: (event) => event.stopPropagation()
+    },
+    h('header', { className: 'voice-studio-header' },
+      h('div', null,
+        h('p', { className: 'eyebrow' }, 'Prywatnie i lokalnie'),
+        h('h2', { id: 'voice-studio-title' }, 'Studio głosu'),
+        h('p', null, 'Nagraj krótkie wskazówki. Pliki pozostają wyłącznie w tej przeglądarce.')
+      ),
+      h('button', {
+        ref: (element) => { this.voiceCloseButton = element; },
+        className: 'studio-close-button',
+        type: 'button',
+        onClick: this.closeVoiceStudio,
+        'aria-label': 'Zamknij studio głosu'
+      }, h(Icon, { name: 'close', size: 20 }))
+    ),
+    h('div', { className: 'voice-studio-progress' },
+      h('span', null, `${clipCount} z 4 gotowe`),
+      h('div', { className: 'voice-progress-track', 'aria-hidden': true },
+        h('span', { style: { width: `${clipCount * 25}%` } })
+      )
+    ),
+    h('div', { className: 'voice-phrase-list' },
+      VOICE_PHRASES.map((phrase) => {
+        const clipReady = Boolean(this.state.voiceClips[phrase.id]);
+        const isRecording = this.state.recordingPhraseId === phrase.id;
+        const recordingAnotherPhrase = Boolean(this.state.recordingPhraseId) && !isRecording;
+
+        return h('article', {
+          className: `voice-phrase-row${clipReady ? ' is-ready' : ''}${isRecording ? ' is-recording' : ''}`,
+          key: phrase.id
+        },
+        h('span', { className: 'phrase-icon' }, h(Icon, { name: phrase.id, size: 21 })),
+        h('span', { className: 'phrase-copy' },
+          h('strong', null, phrase.label),
+          h('small', null, isRecording ? 'Mów teraz…' : phrase.description)
+        ),
+        h('span', { className: 'phrase-actions' },
+          clipReady ? h('button', {
+            className: 'phrase-action-button',
+            type: 'button',
+            onClick: () => this.playVoiceClip(phrase.id).catch(() => {
+              this.setState({ voiceMessage: 'Nie udało się odtworzyć nagrania.' });
+            }),
+            disabled: Boolean(this.state.recordingPhraseId),
+            'aria-label': `Odtwórz: ${phrase.label}`
+          }, h(Icon, { name: 'volume', size: 18 })) : null,
+          h('button', {
+            className: `record-button${isRecording ? ' is-recording' : ''}`,
+            type: 'button',
+            onClick: () => isRecording
+              ? this.stopVoiceRecording()
+              : this.startVoiceRecording(phrase.id),
+            disabled: recordingAnotherPhrase
+          }, isRecording ? 'Zatrzymaj' : clipReady ? 'Nagraj ponownie' : 'Nagraj'),
+          clipReady ? h('button', {
+            className: 'phrase-action-button is-danger',
+            type: 'button',
+            onClick: () => this.deleteVoiceClip(phrase.id),
+            disabled: Boolean(this.state.recordingPhraseId),
+            'aria-label': `Usuń nagranie: ${phrase.label}`
+          }, h(Icon, { name: 'trash', size: 17 })) : null
+        ));
+      })
+    ),
+    h('div', { className: 'voice-studio-footer' },
+      h('p', { className: 'privacy-note' },
+        h(Icon, { name: 'mic', size: 15 }),
+        h('span', null, 'Nagrania nie są przesyłane na serwer i możesz je usunąć w każdej chwili.')
+      ),
+      h('p', { className: 'voice-message', role: 'status', 'aria-live': 'polite' },
+        this.state.voiceMessage || 'Najlepiej nagrywać w cichym miejscu, trzymając telefon blisko.'
+      ),
+      h('button', { className: 'studio-done-button', type: 'button', onClick: this.closeVoiceStudio }, 'Gotowe')
+    )
+    ));
   }
 
   renderMapFooter(destination, maneuvers) {
@@ -607,7 +971,8 @@ class App extends React.Component {
           tripComplete
         }),
         this.renderMapFooter(destination, maneuvers)
-      )
+      ),
+      this.renderVoiceStudio()
     );
   }
 
