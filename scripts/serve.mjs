@@ -2,10 +2,20 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
+import { loadEnvFile } from 'node:process';
 
 const [directory = 'public', rawPort = '4173'] = process.argv.slice(2);
 const root = join(process.cwd(), directory);
 const port = Number(rawPort);
+try {
+  loadEnvFile(join(process.cwd(), '.env.local'));
+} catch (error) {
+  if (error.code !== 'ENOENT') {
+    throw error;
+  }
+}
+
+const openRouteServiceApiKey = process.env.OPENROUTESERVICE_API_KEY;
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -16,8 +26,59 @@ const contentTypes = {
   '.webmanifest': 'application/manifest+json'
 };
 
+function sendJson(response, status, payload) {
+  response.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store'
+  });
+  response.end(JSON.stringify(payload));
+}
+
+async function handleGeocoding(requestUrl, response) {
+  const text = requestUrl.searchParams.get('text')?.trim();
+  if (!text || text.length < 3) {
+    sendJson(response, 400, { error: 'Wpisz co najmniej 3 znaki.' });
+    return;
+  }
+  if (!openRouteServiceApiKey) {
+    sendJson(response, 503, { error: 'Wyszukiwanie nie zostało skonfigurowane.' });
+    return;
+  }
+
+  const upstreamUrl = new URL('https://api.openrouteservice.org/geocode/search');
+  upstreamUrl.searchParams.set('text', text);
+  upstreamUrl.searchParams.set('size', '6');
+  upstreamUrl.searchParams.set('boundary.country', 'PL');
+  upstreamUrl.searchParams.set('lang', 'pl');
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      headers: {
+        Authorization: openRouteServiceApiKey,
+        'User-Agent': 'MojaMapa/1.0'
+      }
+    });
+    const payload = await upstreamResponse.json();
+    if (!upstreamResponse.ok) {
+      sendJson(response, upstreamResponse.status, {
+        error: 'Usługa wyszukiwania jest chwilowo niedostępna.'
+      });
+      return;
+    }
+    sendJson(response, 200, payload);
+  } catch {
+    sendJson(response, 502, { error: 'Nie udało się połączyć z wyszukiwarką miejsc.' });
+  }
+}
+
 createServer(async (request, response) => {
-  const pathname = decodeURIComponent(new URL(request.url, `http://${request.headers.host}`).pathname);
+  const requestUrl = new URL(request.url, `http://${request.headers.host}`);
+  const pathname = decodeURIComponent(requestUrl.pathname);
+  if (pathname === '/api/geocode') {
+    await handleGeocoding(requestUrl, response);
+    return;
+  }
+
   const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, '');
   let filePath = join(root, safePath === '/' ? 'index.html' : safePath);
 

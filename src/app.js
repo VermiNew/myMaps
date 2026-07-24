@@ -403,6 +403,9 @@ class App extends React.Component {
       destination: DESTINATIONS[1],
       query: '',
       searchOpen: false,
+      searchResults: [],
+      searchStatus: 'idle',
+      searchMessage: '',
       recentDestinationIds: ['museum', 'park'],
       navigationActive: false,
       navigationPaused: false,
@@ -426,8 +429,11 @@ class App extends React.Component {
     this.mediaStream = null;
     this.recordingChunks = [];
     this.currentAudio = null;
+    this.searchTimer = null;
+    this.searchRequest = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
+    this.handleSearchChange = this.handleSearchChange.bind(this);
     this.advanceNavigation = this.advanceNavigation.bind(this);
     this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
     this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
@@ -455,6 +461,8 @@ class App extends React.Component {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
     document.removeEventListener('mousedown', this.handleDocumentPointerDown);
     window.clearInterval(this.navigationTimer);
+    window.clearTimeout(this.searchTimer);
+    this.searchRequest?.abort();
     this.releaseMediaStream();
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -512,15 +520,82 @@ class App extends React.Component {
   }
 
   selectDestination(destination) {
+    window.clearTimeout(this.searchTimer);
+    this.searchRequest?.abort();
     this.setState((state) => ({
       destination,
       query: destination.name,
       searchOpen: false,
+      searchStatus: 'idle',
+      searchMessage: '',
       recentDestinationIds: [
         destination.id,
         ...state.recentDestinationIds.filter((id) => id !== destination.id)
       ].slice(0, 3)
     }));
+  }
+
+  handleSearchChange(event) {
+    const query = event.target.value;
+    window.clearTimeout(this.searchTimer);
+    this.searchRequest?.abort();
+    this.setState({
+      query,
+      searchOpen: true,
+      searchResults: [],
+      searchStatus: query.trim().length >= 3 ? 'loading' : 'idle',
+      searchMessage: ''
+    });
+    if (query.trim().length < 3) {
+      return;
+    }
+    this.searchTimer = window.setTimeout(() => this.searchPlaces(query), 350);
+  }
+
+  async searchPlaces(query) {
+    const normalizedQuery = query.trim();
+    this.searchRequest = new AbortController();
+    try {
+      const response = await fetch(`/api/geocode?text=${encodeURIComponent(normalizedQuery)}`, {
+        signal: this.searchRequest.signal
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Nie udało się wyszukać miejsca.');
+      }
+      const results = (payload.features || []).map((feature) => {
+        const properties = feature.properties || {};
+        const label = properties.label || properties.name || 'Wybrane miejsce';
+        const locality = properties.locality || properties.county || properties.region || 'Polska';
+        return {
+          id: properties.gid || `${feature.geometry.coordinates.join('-')}-${label}`,
+          name: properties.name || label.split(',')[0],
+          address: label,
+          district: locality,
+          coordinates: feature.geometry.coordinates,
+          time: 'Wyznacz trasę',
+          distance: '—',
+          isSearchResult: true
+        };
+      });
+      if (this.state.query.trim() !== normalizedQuery) {
+        return;
+      }
+      this.setState({
+        searchResults: results,
+        searchStatus: 'ready',
+        searchMessage: results.length === 0 ? 'Nie znaleźliśmy takiego miejsca.' : ''
+      });
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        return;
+      }
+      this.setState({
+        searchResults: [],
+        searchStatus: 'error',
+        searchMessage: error.message
+      });
+    }
   }
 
   locateUser() {
@@ -817,7 +892,7 @@ class App extends React.Component {
               'aria-label': 'Cel podróży',
               'aria-expanded': searchOpen,
               onFocus: () => this.setState({ searchOpen: true }),
-              onChange: (event) => this.setState({ query: event.target.value, searchOpen: true })
+              onChange: this.handleSearchChange
             }),
             h('kbd', null, '⌘ K')
           ),
@@ -1148,7 +1223,7 @@ class App extends React.Component {
 
   renderSearchResults() {
     const normalizedQuery = this.state.query.trim().toLocaleLowerCase('pl');
-    const matches = DESTINATIONS.filter((destination) => {
+    const localMatches = DESTINATIONS.filter((destination) => {
       if (!normalizedQuery) {
         return true;
       }
@@ -1156,10 +1231,20 @@ class App extends React.Component {
         .toLocaleLowerCase('pl')
         .includes(normalizedQuery);
     });
+    const waitingForRemoteResults = normalizedQuery.length >= 3
+      && this.state.searchStatus === 'loading';
+    const matches = normalizedQuery.length >= 3 && this.state.searchStatus === 'ready'
+      ? this.state.searchResults
+      : localMatches;
 
     return h('div', { className: 'search-results', role: 'listbox', 'aria-label': 'Podpowiedzi miejsc' },
-      h('div', { className: 'search-results-label' }, normalizedQuery ? 'Najlepsze dopasowania' : 'Popularne w pobliżu'),
-      matches.length > 0
+      h('div', { className: 'search-results-label' },
+        normalizedQuery ? 'Wyniki wyszukiwania' : 'Popularne w pobliżu'),
+      waitingForRemoteResults
+        ? h('p', { className: 'empty-results', role: 'status' }, 'Szukam miejsc…')
+        : this.state.searchStatus === 'error'
+          ? h('p', { className: 'empty-results is-error', role: 'status' }, this.state.searchMessage)
+          : matches.length > 0
         ? matches.map((destination) => h('button', {
           className: 'search-result',
           key: destination.id,
@@ -1173,9 +1258,9 @@ class App extends React.Component {
           h('strong', null, destination.name),
           h('small', null, `${destination.address} · ${destination.district}`)
         ),
-        h('span', { className: 'result-time' }, destination.time)
+        h('span', { className: 'result-time' }, destination.isSearchResult ? 'Wybierz' : destination.time)
         ))
-        : h('p', { className: 'empty-results' }, 'Nie znaleźliśmy takiego miejsca w wersji demonstracyjnej.')
+            : h('p', { className: 'empty-results' }, this.state.searchMessage || 'Nie znaleźliśmy takiego miejsca.')
     );
   }
 
@@ -1196,7 +1281,7 @@ class App extends React.Component {
     const recentDestinations = recentDestinationIds
       .map((id) => DESTINATIONS.find((item) => item.id === id))
       .filter(Boolean);
-    const maneuvers = MANEUVERS[destination.id];
+    const maneuvers = MANEUVERS[destination.id] || MANEUVERS.park;
     const currentManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
     const navigationMode = navigationActive || tripComplete;
 
