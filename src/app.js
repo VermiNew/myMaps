@@ -1,6 +1,10 @@
 'use strict';
 
+const React = window.React;
+const ReactDOM = window.ReactDOM;
 const h = React.createElement;
+const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+const DEFAULT_ORIGIN = [21.0374, 52.2518];
 
 const DESTINATIONS = [
   {
@@ -8,6 +12,7 @@ const DESTINATIONS = [
     name: 'Muzeum Narodowe',
     address: 'Aleje Jerozolimskie 3, Warszawa',
     district: 'Śródmieście',
+    coordinates: [21.0245, 52.2317],
     time: '18 min',
     distance: '5,7 km',
     routePath: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235',
@@ -19,6 +24,7 @@ const DESTINATIONS = [
     name: 'Park Skaryszewski',
     address: 'Aleja Zieleniecka, Warszawa',
     district: 'Praga-Południe',
+    coordinates: [21.0647, 52.2442],
     time: '24 min',
     distance: '8,4 km',
     routePath: 'M175 625C305 570 410 600 510 545s172-130 290-70 190 160 320 135',
@@ -30,6 +36,7 @@ const DESTINATIONS = [
     name: 'Biblioteka Uniwersytecka',
     address: 'Dobra 56/66, Warszawa',
     district: 'Powiśle',
+    coordinates: [21.0248, 52.2429],
     time: '15 min',
     distance: '4,3 km',
     routePath: 'M175 625C295 535 355 420 490 410s195 15 285-75 120-155 210-185',
@@ -41,6 +48,7 @@ const DESTINATIONS = [
     name: 'Warszawa Centralna',
     address: 'Aleje Jerozolimskie 54, Warszawa',
     district: 'Śródmieście',
+    coordinates: [21.0039, 52.2285],
     time: '12 min',
     distance: '3,6 km',
     routePath: 'M175 625C280 555 315 470 430 445s200 25 305-45 125-110 205-95',
@@ -209,135 +217,183 @@ function Icon({ name, size = 20 }) {
   }, icons[name]);
 }
 
-function MapCanvas({
-  destination,
-  navigationActive,
-  stepIndex,
-  currentManeuver,
-  tripComplete,
-  locationStatus,
-  mapZoom,
-  onZoomIn,
-  onZoomOut,
-  onResetMap
-}) {
-  const routePath = destination.routePath;
-  const endpoint = destination.endpoint;
-  const currentPoint = destination.navigationPoints[Math.min(stepIndex, destination.navigationPoints.length - 1)];
+class MapCanvas extends React.Component {
+  constructor(props) {
+    super(props);
+    this.mapContainer = null;
+    this.map = null;
+    this.originMarker = null;
+    this.destinationMarker = null;
+    this.state = { mapError: false };
+    this.fitMap = this.fitMap.bind(this);
+  }
 
-  return h('div', { className: 'map-canvas', 'aria-label': 'Mapa demonstracyjna Warszawy' },
-    h('svg', {
-      className: 'map-art',
-      viewBox: '0 0 1200 800',
-      role: 'img',
-      'aria-label': 'Stylizowana mapa ulic',
-      style: { transform: `scale(${mapZoom})` }
-    },
-      h('defs', null,
-        h('pattern', { id: 'minor-grid', width: 52, height: 52, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(16)' },
-          h('path', { d: 'M 52 0 L 0 0 0 52', fill: 'none', stroke: '#d9d7d0', strokeWidth: 1 })
-        ),
-        h('filter', { id: 'route-shadow', x: '-20%', y: '-20%', width: '140%', height: '140%' },
-          h('feDropShadow', { dx: 0, dy: 5, stdDeviation: 7, floodColor: '#101827', floodOpacity: 0.22 })
+  componentDidMount() {
+    try {
+      this.map = new window.maplibregl.Map({
+        container: this.mapContainer,
+        style: MAP_STYLE_URL,
+        center: [21.03, 52.24],
+        zoom: 11.5,
+        attributionControl: true
+      });
+      this.map.dragRotate.disable();
+      this.map.touchZoomRotate.disableRotation();
+      this.map.once('load', () => {
+        this.updateMarkers();
+        this.fitMap();
+      });
+      this.map.on('error', (event) => {
+        if (!event.error || !this.map.loaded()) {
+          this.setState({ mapError: true });
+        }
+      });
+    } catch {
+      this.setState({ mapError: true });
+    }
+  }
+
+  componentDidUpdate(previousProps) {
+    if (!this.map) {
+      return;
+    }
+    if (previousProps.destination !== this.props.destination
+      || previousProps.userCoordinates !== this.props.userCoordinates) {
+      this.updateMarkers();
+      this.fitMap();
+    }
+    if (previousProps.mapZoom !== this.props.mapZoom) {
+      if (this.props.mapZoom === 1) {
+        this.fitMap();
+      } else {
+        this.map.easeTo({
+          zoom: 11.5 + ((this.props.mapZoom - 1) * 5),
+          duration: 240
+        });
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    this.originMarker?.remove();
+    this.destinationMarker?.remove();
+    this.map?.remove();
+  }
+
+  getOrigin() {
+    const { userCoordinates } = this.props;
+    return userCoordinates
+      ? [userCoordinates.longitude, userCoordinates.latitude]
+      : DEFAULT_ORIGIN;
+  }
+
+  createMarker(className, label) {
+    const element = document.createElement('div');
+    element.className = className;
+    element.setAttribute('aria-label', label);
+    element.setAttribute('role', 'img');
+    return element;
+  }
+
+  updateMarkers() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    this.originMarker?.remove();
+    this.destinationMarker?.remove();
+    this.originMarker = new window.maplibregl.Marker({
+      element: this.createMarker('map-origin-marker', 'Początek trasy')
+    }).setLngLat(this.getOrigin()).addTo(this.map);
+    this.destinationMarker = new window.maplibregl.Marker({
+      element: this.createMarker('map-destination-marker', `Cel: ${this.props.destination.name}`),
+      anchor: 'bottom'
+    }).setLngLat(this.props.destination.coordinates).addTo(this.map);
+  }
+
+  fitMap() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    this.props.onResetMap();
+    this.map.fitBounds([
+      this.getOrigin(),
+      this.props.destination.coordinates
+    ], {
+      padding: { top: 110, right: 100, bottom: 150, left: 100 },
+      maxZoom: 14,
+      duration: 420
+    });
+  }
+
+  render() {
+    const {
+      destination,
+      navigationActive,
+      currentManeuver,
+      tripComplete,
+      locationStatus,
+      mapZoom,
+      onZoomIn,
+      onZoomOut
+    } = this.props;
+
+    return h('div', { className: 'map-canvas', 'aria-label': 'Interaktywna mapa Warszawy' },
+      h('div', {
+        className: 'map-surface',
+        ref: (element) => { this.mapContainer = element; }
+      }),
+      this.state.mapError
+        ? h('div', { className: 'map-error', role: 'status' },
+          h('strong', null, 'Mapa jest chwilowo niedostępna'),
+          h('span', null, 'Sprawdź połączenie z internetem i odśwież stronę.')
         )
-      ),
-      h('rect', { width: 1200, height: 800, fill: '#eceae3' }),
-      h('rect', { width: 1200, height: 800, fill: 'url(#minor-grid)', opacity: 0.58 }),
-      h('path', { className: 'river', d: 'M-40 690C160 560 180 420 360 340S680 290 720 120 980-20 1260 80' }),
-      h('g', { className: 'parks' },
-        h('path', { d: 'M70 90h230l35 140-70 90-205-44Z' }),
-        h('path', { d: 'M800 470l290-50 90 180-180 150-210-85Z' }),
-        h('path', { d: 'M430 500l180-20 45 145-90 110-170-45Z' })
-      ),
-      h('g', { className: 'roads roads-major' },
-        h('path', { d: 'M-40 600C220 520 270 355 530 370s390 145 720 20' }),
-        h('path', { d: 'M230-30c25 210 90 330 270 450s235 185 260 410' }),
-        h('path', { d: 'M810-40c-80 180-110 290-30 410s210 190 390 250' })
-      ),
-      h('g', { className: 'roads roads-local' },
-        h('path', { d: 'M30 180c260 70 405 20 610-105' }),
-        h('path', { d: 'M70 730c230-160 440-135 650-10' }),
-        h('path', { d: 'M340 40c-45 170-30 330 65 520' }),
-        h('path', { d: 'M610 20c25 170 10 310-85 480' }),
-        h('path', { d: 'M920 100c-90 150-115 300-70 460' }),
-        h('path', { d: 'M1020 250c-220 15-385 130-500 340' })
-      ),
-      h('path', { className: 'route-line-back', d: routePath, filter: 'url(#route-shadow)' }),
-      h('path', { className: 'route-line', d: routePath }),
-      h('g', { className: 'map-labels' },
-        h('text', { x: 115, y: 150 }, 'Żoliborz'),
-        h('text', { x: 475, y: 285 }, 'Śródmieście'),
-        h('text', { x: 880, y: 350 }, 'Praga-Północ'),
-        h('text', { x: 770, y: 690 }, 'Saska Kępa')
-      ),
-      h('g', {
-        className: `start-marker${locationStatus === 'ready' ? ' is-located' : ''}`,
-        transform: 'translate(175 625)'
-      },
-        h('circle', { r: 20, fill: '#ffffff', opacity: 0.92 }),
-        h('circle', { r: 10, fill: '#2d6cf6' }),
-        h('circle', { r: 4, fill: '#ffffff' })
-      ),
-      h('g', { transform: `translate(${endpoint[0]} ${endpoint[1]})` },
-        h('path', { d: 'M0-28C-17-28-28-16-28 0c0 22 28 47 28 47S28 22 28 0C28-16 17-28 0-28Z', fill: '#172234' }),
-        h('circle', { r: 8, fill: '#fff' })
-      ),
+        : null,
       navigationActive || tripComplete
-        ? h('g', {
-          className: 'navigation-marker',
-          transform: `translate(${currentPoint[0]} ${currentPoint[1]})`
-        },
-        h('circle', { r: 25, fill: '#ffffff', opacity: 0.92 }),
-        h('circle', { r: 17, fill: tripComplete ? '#1f8a5b' : '#2d6cf6' }),
-        h('path', { d: 'M0-9 7 8 0 5-7 8Z', fill: '#ffffff' })
+        ? h('div', { className: `navigation-instruction${tripComplete ? ' is-complete' : ''}` },
+          h('span', { className: 'maneuver-icon' }, h(Icon, {
+            name: tripComplete ? 'arrive' : currentManeuver.type,
+            size: 28
+          })),
+          h('span', { className: 'instruction-copy' },
+            h('small', null, tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance),
+            h('strong', null, tripComplete ? destination.name : currentManeuver.instruction)
+          )
         )
-        : null
-    ),
-    navigationActive || tripComplete
-      ? h('div', { className: `navigation-instruction${tripComplete ? ' is-complete' : ''}` },
-        h('span', { className: 'maneuver-icon' }, h(Icon, {
-          name: tripComplete ? 'arrive' : currentManeuver.type,
-          size: 28
-        })),
-        h('span', { className: 'instruction-copy' },
-          h('small', null, tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance),
-          h('strong', null, tripComplete ? destination.name : currentManeuver.instruction)
-        )
-      )
-      : null,
-    h('div', { className: 'map-toolbar' },
-      h('button', {
-        className: `map-tool${mapZoom !== 1 ? ' is-active' : ''}`,
-        type: 'button',
-        onClick: onResetMap,
-        'aria-label': 'Przywróć widok całej trasy'
-      }, h(Icon, { name: 'compass' })),
-      h('div', { className: 'zoom-group' },
+        : null,
+      h('div', { className: 'map-toolbar' },
         h('button', {
-          className: 'map-tool',
+          className: `map-tool${mapZoom !== 1 ? ' is-active' : ''}`,
           type: 'button',
-          onClick: onZoomIn,
-          disabled: mapZoom >= 1.3,
-          'aria-label': 'Powiększ mapę'
-        }, '+'),
-        h('button', {
-          className: 'map-tool',
-          type: 'button',
-          onClick: onZoomOut,
-          disabled: mapZoom <= 0.85,
-          'aria-label': 'Pomniejsz mapę'
-        }, '−')
+          onClick: this.fitMap,
+          'aria-label': 'Przywróć widok całej trasy'
+        }, h(Icon, { name: 'compass' })),
+        h('div', { className: 'zoom-group' },
+          h('button', {
+            className: 'map-tool',
+            type: 'button',
+            onClick: onZoomIn,
+            disabled: mapZoom >= 1.3,
+            'aria-label': 'Powiększ mapę'
+          }, '+'),
+          h('button', {
+            className: 'map-tool',
+            type: 'button',
+            onClick: onZoomOut,
+            disabled: mapZoom <= 0.85,
+            'aria-label': 'Pomniejsz mapę'
+          }, '−')
+        ),
+        h('span', { className: 'zoom-status', 'aria-live': 'polite' }, `${Math.round(mapZoom * 100)}%`)
       ),
-      h('span', { className: 'zoom-status', 'aria-live': 'polite' }, `${Math.round(mapZoom * 100)}%`)
-    ),
-    locationStatus === 'ready' && !navigationActive && !tripComplete
-      ? h('div', { className: 'location-confirmation' },
-        h(Icon, { name: 'location', size: 15 }),
-        h('span', null, 'Twoja lokalizacja')
-      )
-      : null,
-    h('div', { className: 'map-credit' }, 'Mapa demonstracyjna · dane przykładowe')
-  );
+      locationStatus === 'ready' && !navigationActive && !tripComplete
+        ? h('div', { className: 'location-confirmation' },
+          h(Icon, { name: 'location', size: 15 }),
+          h('span', null, 'Twoja lokalizacja')
+        )
+        : null,
+      h('div', { className: 'map-credit' }, 'Dane © OpenStreetMap · OpenFreeMap')
+    );
+  }
 }
 
 class App extends React.Component {
@@ -1133,6 +1189,7 @@ class App extends React.Component {
       stepIndex,
       tripComplete,
       locationStatus,
+      userCoordinates,
       mapZoom,
       menuOpen
     } = this.state;
@@ -1177,6 +1234,7 @@ class App extends React.Component {
           currentManeuver,
           tripComplete,
           locationStatus,
+          userCoordinates,
           mapZoom,
           onZoomIn: () => this.adjustMapZoom(0.15),
           onZoomOut: () => this.adjustMapZoom(-0.15),

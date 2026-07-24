@@ -1,13 +1,18 @@
 'use strict';
 
-const CACHE_NAME = 'mojamapa-v1';
+const CACHE_NAME = 'mojamapa-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
   './src/styles.css',
+  './src/bootstrap.mjs',
   './src/app.js',
+  './vendor/maplibre-gl.css',
+  './vendor/maplibre-gl.mjs',
+  './vendor/maplibre-gl-shared.mjs',
+  './vendor/maplibre-gl-worker.mjs',
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js'
 ];
