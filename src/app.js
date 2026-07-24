@@ -209,7 +209,7 @@ function Icon({ name, size = 20 }) {
   }, icons[name]);
 }
 
-function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, tripComplete }) {
+function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, tripComplete, locationStatus }) {
   const routePath = destination.routePath;
   const endpoint = destination.endpoint;
   const currentPoint = destination.navigationPoints[Math.min(stepIndex, destination.navigationPoints.length - 1)];
@@ -253,7 +253,10 @@ function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, 
         h('text', { x: 880, y: 350 }, 'Praga-Północ'),
         h('text', { x: 770, y: 690 }, 'Saska Kępa')
       ),
-      h('g', { transform: 'translate(175 625)' },
+      h('g', {
+        className: `start-marker${locationStatus === 'ready' ? ' is-located' : ''}`,
+        transform: 'translate(175 625)'
+      },
         h('circle', { r: 20, fill: '#ffffff', opacity: 0.92 }),
         h('circle', { r: 10, fill: '#2d6cf6' }),
         h('circle', { r: 4, fill: '#ffffff' })
@@ -292,6 +295,12 @@ function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, 
         h('button', { className: 'map-tool', type: 'button', 'aria-label': 'Pomniejsz mapę' }, '−')
       )
     ),
+    locationStatus === 'ready' && !navigationActive && !tripComplete
+      ? h('div', { className: 'location-confirmation' },
+        h(Icon, { name: 'location', size: 15 }),
+        h('span', null, 'Twoja lokalizacja')
+      )
+      : null,
     h('div', { className: 'map-credit' }, 'Mapa demonstracyjna · dane przykładowe')
   );
 }
@@ -311,7 +320,10 @@ class App extends React.Component {
       voiceStudioOpen: false,
       voiceClips: {},
       recordingPhraseId: null,
-      voiceMessage: ''
+      voiceMessage: '',
+      locationStatus: 'idle',
+      locationMessage: '',
+      userCoordinates: null
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
@@ -326,6 +338,7 @@ class App extends React.Component {
     this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
     this.openVoiceStudio = this.openVoiceStudio.bind(this);
     this.playVoiceClip = this.playVoiceClip.bind(this);
+    this.locateUser = this.locateUser.bind(this);
     this.startNavigation = this.startNavigation.bind(this);
     this.startVoiceRecording = this.startVoiceRecording.bind(this);
     this.stopVoiceRecording = this.stopVoiceRecording.bind(this);
@@ -383,6 +396,40 @@ class App extends React.Component {
         ...state.recentDestinationIds.filter((id) => id !== destination.id)
       ].slice(0, 3)
     }));
+  }
+
+  locateUser() {
+    if (!navigator.geolocation) {
+      this.setState({
+        locationStatus: 'error',
+        locationMessage: 'Ta przeglądarka nie udostępnia lokalizacji.'
+      });
+      return;
+    }
+
+    this.setState({ locationStatus: 'locating', locationMessage: 'Ustalam Twoją pozycję…' });
+    navigator.geolocation.getCurrentPosition((position) => {
+      this.setState({
+        locationStatus: 'ready',
+        locationMessage: `Dokładność około ${Math.round(position.coords.accuracy)} m · trasa demonstracyjna`,
+        userCoordinates: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        }
+      });
+    }, (error) => {
+      const permissionDenied = error && error.code === 1;
+      this.setState({
+        locationStatus: 'error',
+        locationMessage: permissionDenied
+          ? 'Nie przyznano dostępu do lokalizacji.'
+          : 'Nie udało się ustalić pozycji. Spróbuj ponownie.'
+      });
+    }, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000
+    });
   }
 
   async loadVoiceClips() {
@@ -628,10 +675,24 @@ class App extends React.Component {
           ),
           searchOpen ? this.renderSearchResults() : null
         ),
-        h('button', { className: 'location-button', type: 'button' },
+        h('button', {
+          className: `location-button is-${this.state.locationStatus}`,
+          type: 'button',
+          onClick: this.locateUser,
+          disabled: this.state.locationStatus === 'locating'
+        },
           h(Icon, { name: 'location' }),
-          h('span', null, 'Użyj mojej lokalizacji')
-        )
+          h('span', null, this.state.locationStatus === 'locating'
+            ? 'Ustalam lokalizację…'
+            : this.state.locationStatus === 'ready' ? 'Lokalizacja ustawiona' : 'Użyj mojej lokalizacji')
+        ),
+        this.state.locationMessage
+          ? h('p', {
+            className: `location-message is-${this.state.locationStatus}`,
+            role: 'status',
+            'aria-live': 'polite'
+          }, this.state.locationMessage)
+          : null
       ),
       h('section', { className: 'recent-section' },
         h('div', { className: 'section-heading' },
@@ -939,7 +1000,8 @@ class App extends React.Component {
       searchOpen,
       navigationActive,
       stepIndex,
-      tripComplete
+      tripComplete,
+      locationStatus
     } = this.state;
     const recentDestinations = recentDestinationIds
       .map((id) => DESTINATIONS.find((item) => item.id === id))
@@ -968,7 +1030,8 @@ class App extends React.Component {
           navigationActive,
           stepIndex,
           currentManeuver,
-          tripComplete
+          tripComplete,
+          locationStatus
         }),
         this.renderMapFooter(destination, maneuvers)
       ),

@@ -293,6 +293,34 @@ kbd {
   cursor: pointer;
 }
 
+.location-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.location-button.is-ready {
+  color: #24754f;
+}
+
+.location-button.is-error {
+  color: #9b4642;
+}
+
+.location-message {
+  margin: -4px 7px 0;
+  color: #7d8690;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.location-message.is-ready {
+  color: #4d7860;
+}
+
+.location-message.is-error {
+  color: #9b5b57;
+}
+
 .recent-section {
   margin-top: 48px;
 }
@@ -783,6 +811,43 @@ kbd {
   backdrop-filter: blur(8px);
 }
 
+.location-confirmation {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  color: #245f45;
+  background: rgba(246, 251, 247, 0.92);
+  border: 1px solid rgba(36, 117, 79, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(23, 34, 52, 0.09);
+  font-size: 11px;
+  font-weight: 750;
+  backdrop-filter: blur(10px);
+}
+
+.start-marker.is-located circle:first-child {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: location-pulse 1.8s ease-out infinite;
+}
+
+@keyframes location-pulse {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.9);
+  }
+
+  70%,
+  100% {
+    opacity: 0.12;
+    transform: scale(1.75);
+  }
+}
+
 .route-summary {
   position: absolute;
   left: 50%;
@@ -881,6 +946,11 @@ input:focus-visible {
   .map-region {
     height: 72vh;
     min-height: 520px;
+  }
+
+  .location-confirmation {
+    top: 16px;
+    left: 16px;
   }
 
   .voice-studio-backdrop {
