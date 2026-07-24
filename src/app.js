@@ -359,23 +359,28 @@ class App extends React.Component {
       locationStatus: 'idle',
       locationMessage: '',
       userCoordinates: null,
-      mapZoom: 1
+      mapZoom: 1,
+      menuOpen: false
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
+    this.menuContainer = null;
     this.navigationTimer = null;
     this.mediaRecorder = null;
     this.mediaStream = null;
     this.recordingChunks = [];
     this.currentAudio = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
+    this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.advanceNavigation = this.advanceNavigation.bind(this);
     this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
     this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
+    this.focusDestinationSearch = this.focusDestinationSearch.bind(this);
     this.openVoiceStudio = this.openVoiceStudio.bind(this);
     this.playVoiceClip = this.playVoiceClip.bind(this);
     this.locateUser = this.locateUser.bind(this);
     this.resetMapView = this.resetMapView.bind(this);
+    this.returnToPlanner = this.returnToPlanner.bind(this);
     this.startNavigation = this.startNavigation.bind(this);
     this.startVoiceRecording = this.startVoiceRecording.bind(this);
     this.stopVoiceRecording = this.stopVoiceRecording.bind(this);
@@ -385,11 +390,13 @@ class App extends React.Component {
 
   componentDidMount() {
     window.addEventListener('keydown', this.handleGlobalShortcut);
+    document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
   }
 
   componentWillUnmount() {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
+    document.removeEventListener('mousedown', this.handleDocumentPointerDown);
     window.clearInterval(this.navigationTimer);
     this.releaseMediaStream();
     if (this.currentAudio) {
@@ -415,11 +422,23 @@ class App extends React.Component {
       return;
     }
 
+    if (event.key === 'Escape' && this.state.menuOpen) {
+      event.preventDefault();
+      this.setState({ menuOpen: false });
+      return;
+    }
+
     if (event.key === 'Escape') {
       this.setState({ searchOpen: false });
       if (this.searchInput) {
         this.searchInput.blur();
       }
+    }
+  }
+
+  handleDocumentPointerDown(event) {
+    if (this.state.menuOpen && this.menuContainer && !this.menuContainer.contains(event.target)) {
+      this.setState({ menuOpen: false });
     }
   }
 
@@ -496,11 +515,24 @@ class App extends React.Component {
   }
 
   openVoiceStudio() {
-    this.setState({ voiceStudioOpen: true, voiceMessage: '' }, () => {
+    this.setState({ voiceStudioOpen: true, voiceMessage: '', menuOpen: false }, () => {
       if (this.voiceCloseButton) {
         this.voiceCloseButton.focus();
       }
     });
+  }
+
+  focusDestinationSearch() {
+    this.setState({ menuOpen: false, searchOpen: true }, () => {
+      if (this.searchInput) {
+        this.searchInput.focus();
+      }
+    });
+  }
+
+  returnToPlanner() {
+    this.stopNavigation();
+    this.setState({ menuOpen: false });
   }
 
   closeVoiceStudio() {
@@ -851,6 +883,45 @@ class App extends React.Component {
     );
   }
 
+  renderAppMenu(navigationMode) {
+    if (!this.state.menuOpen) {
+      return null;
+    }
+
+    return h('nav', { className: 'app-menu', 'aria-label': 'Menu aplikacji' },
+      h('div', { className: 'app-menu-heading' },
+        h('strong', null, 'MojaMapa'),
+        h('small', null, 'Wersja demonstracyjna')
+      ),
+      h('button', { className: 'app-menu-item', type: 'button', onClick: this.openVoiceStudio },
+        h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'mic', size: 18 })),
+        h('span', null,
+          h('strong', null, 'Studio głosu'),
+          h('small', null, 'Nagraj i odsłuchaj komunikaty')
+        )
+      ),
+      navigationMode
+        ? h('button', { className: 'app-menu-item', type: 'button', onClick: this.returnToPlanner },
+          h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'stop', size: 17 })),
+          h('span', null,
+            h('strong', null, 'Wróć do planowania'),
+            h('small', null, 'Zakończ bieżącą symulację')
+          )
+        )
+        : h('button', { className: 'app-menu-item', type: 'button', onClick: this.focusDestinationSearch },
+          h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'search', size: 18 })),
+          h('span', null,
+            h('strong', null, 'Wyszukaj miejsce'),
+            h('small', null, 'Przejdź od razu do pola celu')
+          )
+        ),
+      h('div', { className: 'app-menu-note' },
+        h(Icon, { name: 'route', size: 15 }),
+        h('span', null, 'Trasy i czasy są przykładowe. Nagrania pozostają na urządzeniu.')
+      )
+    );
+  }
+
   renderVoiceStudio() {
     if (!this.state.voiceStudioOpen) {
       return null;
@@ -1049,7 +1120,8 @@ class App extends React.Component {
       stepIndex,
       tripComplete,
       locationStatus,
-      mapZoom
+      mapZoom,
+      menuOpen
     } = this.state;
     const recentDestinations = recentDestinationIds
       .map((id) => DESTINATIONS.find((item) => item.id === id))
@@ -1065,7 +1137,19 @@ class App extends React.Component {
             h('span', { className: 'brand-mark' }, h(Icon, { name: 'route', size: 23 })),
             h('span', null, 'MojaMapa')
           ),
-          h('button', { className: 'icon-button', type: 'button', 'aria-label': 'Otwórz menu' }, h(Icon, { name: 'menu' }))
+          h('div', {
+            className: 'menu-container',
+            ref: (element) => { this.menuContainer = element; }
+          },
+          h('button', {
+            className: `icon-button${menuOpen ? ' is-active' : ''}`,
+            type: 'button',
+            onClick: () => this.setState({ menuOpen: !menuOpen }),
+            'aria-label': menuOpen ? 'Zamknij menu' : 'Otwórz menu',
+            'aria-expanded': menuOpen
+          }, h(Icon, { name: menuOpen ? 'close' : 'menu' })),
+          this.renderAppMenu(navigationMode)
+          )
         ),
         navigationMode
           ? this.renderNavigationFlow(destination, maneuvers, currentManeuver)
