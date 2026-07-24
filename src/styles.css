@@ -653,3 +653,304 @@ input:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Navigation mode */
+.sidebar-flow {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.navigation-overview {
+  margin-top: 58px;
+}
+
+.navigation-title {
+  margin-bottom: 14px;
+  font-size: clamp(38px, 3.6vw, 50px);
+}
+
+.destination-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(23, 34, 52, 0.09);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(23, 34, 52, 0.08);
+}
+
+.destination-pin {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #ffffff;
+  background: var(--ink);
+  border-radius: 12px;
+}
+
+.trip-progress {
+  height: 5px;
+  margin-top: 18px;
+  overflow: hidden;
+  background: #e3e6e5;
+  border-radius: 999px;
+}
+
+.trip-progress span {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+  border-radius: inherit;
+  transition: width 350ms ease;
+}
+
+.maneuvers-section {
+  margin-top: 42px;
+}
+
+.step-counter {
+  color: #8a929c;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.maneuver-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 10px;
+  color: #77808b;
+  border-radius: 14px;
+}
+
+.maneuver-row.is-current {
+  color: var(--ink);
+  background: #eef1ef;
+}
+
+.maneuver-list-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(23, 34, 52, 0.07);
+  border-radius: 12px;
+}
+
+.maneuver-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.maneuver-copy strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.maneuver-copy small {
+  color: #9299a2;
+  font-size: 11px;
+}
+
+.current-voice-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 20px 8px 0;
+  color: #6c7580;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.current-voice-line .icon {
+  margin-top: 1px;
+  color: var(--blue);
+}
+
+.arrival-note {
+  padding: 20px;
+  background: #e8f1e9;
+  border: 1px solid rgba(31, 138, 91, 0.13);
+  border-radius: 16px;
+}
+
+.arrival-note strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.arrival-note p {
+  margin: 8px 0 0;
+  color: #68756c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.navigation-marker {
+  transition: transform 420ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.navigation-instruction {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  width: min(520px, calc(100% - 150px));
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px 14px 14px;
+  color: #ffffff;
+  background: rgba(23, 34, 52, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(23, 34, 52, 0.24);
+  transform: translateX(-50%);
+  backdrop-filter: blur(14px);
+}
+
+.navigation-instruction.is-complete {
+  background: rgba(28, 112, 76, 0.96);
+}
+
+.maneuver-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--ink);
+  background: #ffffff;
+  border-radius: 14px;
+}
+
+.instruction-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.instruction-copy small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.instruction-copy strong {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigation-controls {
+  width: min(700px, calc(100% - 56px));
+}
+
+.navigation-controls > .control-buttons {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.secondary-control,
+.next-control {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 13px;
+  cursor: pointer;
+}
+
+.secondary-control {
+  width: 44px;
+  color: var(--ink);
+  background: #eef0ef;
+}
+
+.next-control {
+  gap: 8px;
+  padding: 0 15px;
+  color: #ffffff;
+  background: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.danger-control {
+  color: #a23c3c;
+  background: #f6eaea;
+}
+
+.arrival-summary {
+  border-color: rgba(31, 138, 91, 0.18);
+}
+
+.arrival-summary > div {
+  max-width: 340px;
+}
+
+.arrival-summary strong {
+  overflow: hidden;
+  font-family: Inter, ui-sans-serif, sans-serif;
+  font-size: 18px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  .navigation-overview {
+    margin-top: 42px;
+  }
+
+  .navigation-flow {
+    min-height: 540px;
+  }
+
+  .navigation-instruction {
+    top: 16px;
+    width: calc(100% - 92px);
+  }
+
+  .navigation-controls {
+    width: calc(100% - 28px);
+  }
+}
+
+@media (max-width: 560px) {
+  .navigation-instruction {
+    right: 14px;
+    left: 14px;
+    width: auto;
+    transform: none;
+  }
+
+  .instruction-copy strong {
+    white-space: normal;
+  }
+
+  .navigation-controls > div:first-child small {
+    display: none;
+  }
+
+  .next-control span {
+    display: none;
+  }
+}

@@ -11,7 +11,8 @@ const DESTINATIONS = [
     time: '18 min',
     distance: '5,7 km',
     routePath: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235',
-    endpoint: [1095, 171]
+    endpoint: [1095, 171],
+    navigationPoints: [[175, 625], [360, 500], [560, 430], [820, 420], [980, 300], [1095, 171]]
   },
   {
     id: 'park',
@@ -21,7 +22,8 @@ const DESTINATIONS = [
     time: '24 min',
     distance: '8,4 km',
     routePath: 'M175 625C305 570 410 600 510 545s172-130 290-70 190 160 320 135',
-    endpoint: [1120, 610]
+    endpoint: [1120, 610],
+    navigationPoints: [[175, 625], [350, 585], [520, 545], [730, 470], [930, 520], [1120, 610]]
   },
   {
     id: 'library',
@@ -31,7 +33,8 @@ const DESTINATIONS = [
     time: '15 min',
     distance: '4,3 km',
     routePath: 'M175 625C295 535 355 420 490 410s195 15 285-75 120-155 210-185',
-    endpoint: [985, 150]
+    endpoint: [985, 150],
+    navigationPoints: [[175, 625], [330, 500], [490, 410], [675, 400], [830, 290], [985, 150]]
   },
   {
     id: 'station',
@@ -41,13 +44,53 @@ const DESTINATIONS = [
     time: '12 min',
     distance: '3,6 km',
     routePath: 'M175 625C280 555 315 470 430 445s200 25 305-45 125-110 205-95',
-    endpoint: [940, 305]
+    endpoint: [940, 305],
+    navigationPoints: [[175, 625], [315, 520], [430, 445], [610, 445], [770, 365], [940, 305]]
   }
 ];
+
+const MANEUVERS = {
+  museum: [
+    { type: 'straight', distance: '300 m', instruction: 'Jedź prosto ulicą Targową' },
+    { type: 'right', distance: '1,2 km', instruction: 'Skręć w prawo w aleję Solidarności' },
+    { type: 'left', distance: '2,4 km', instruction: 'Trzymaj się lewej strony przy placu Bankowym' },
+    { type: 'straight', distance: '900 m', instruction: 'Jedź prosto przez rondo de Gaulle’a' },
+    { type: 'right', distance: '120 m', instruction: 'Skręć w prawo przy Muzeum Narodowym' },
+    { type: 'arrive', distance: 'Cel', instruction: 'Miejsce docelowe jest po prawej stronie' }
+  ],
+  park: [
+    { type: 'straight', distance: '450 m', instruction: 'Jedź prosto ulicą Zamoyskiego' },
+    { type: 'right', distance: '700 m', instruction: 'Skręć w prawo w aleję Zieleniecką' },
+    { type: 'left', distance: '1,6 km', instruction: 'Skręć łagodnie w lewo przy rondzie Waszyngtona' },
+    { type: 'straight', distance: '800 m', instruction: 'Jedź prosto wzdłuż parku' },
+    { type: 'right', distance: '80 m', instruction: 'Skręć w prawo na parking' },
+    { type: 'arrive', distance: 'Cel', instruction: 'Park Skaryszewski jest przed Tobą' }
+  ],
+  library: [
+    { type: 'straight', distance: '250 m', instruction: 'Jedź prosto ulicą Targową' },
+    { type: 'left', distance: '950 m', instruction: 'Skręć w lewo w ulicę Świętokrzyską' },
+    { type: 'right', distance: '1,1 km', instruction: 'Skręć w prawo w ulicę Dobrą' },
+    { type: 'straight', distance: '600 m', instruction: 'Jedź prosto w kierunku Powiśla' },
+    { type: 'left', distance: '90 m', instruction: 'Skręć w lewo przed biblioteką' },
+    { type: 'arrive', distance: 'Cel', instruction: 'Biblioteka znajduje się po lewej stronie' }
+  ],
+  station: [
+    { type: 'straight', distance: '350 m', instruction: 'Jedź prosto w kierunku centrum' },
+    { type: 'left', distance: '800 m', instruction: 'Skręć w lewo w ulicę Marszałkowską' },
+    { type: 'right', distance: '650 m', instruction: 'Skręć w prawo w Aleje Jerozolimskie' },
+    { type: 'straight', distance: '500 m', instruction: 'Trzymaj się środkowego pasa' },
+    { type: 'right', distance: '60 m', instruction: 'Skręć w prawo na podjazd dworca' },
+    { type: 'arrive', distance: 'Cel', instruction: 'Dworzec Centralny jest przed Tobą' }
+  ]
+};
 
 function Icon({ name, size = 20 }) {
   const icons = {
     arrow: h('path', { d: 'M5 12h14M13 6l6 6-6 6' }),
+    arrive: h('g', null,
+      h('path', { d: 'M6 21V5' }),
+      h('path', { d: 'M6 6h10l-2 4 2 4H6' })
+    ),
     compass: h('g', null,
       h('circle', { cx: 12, cy: 12, r: 9 }),
       h('path', { d: 'm15.4 8.6-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2Z' })
@@ -62,10 +105,19 @@ function Icon({ name, size = 20 }) {
       h('path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6' })
     ),
     route: h('path', { d: 'M6 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm12-8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8.5 15.5c4.5 0 1-7 6.5-7' }),
+    left: h('path', { d: 'M19 19v-3a6 6 0 0 0-6-6H5m5-5-5 5 5 5' }),
+    pause: h('g', null,
+      h('path', { d: 'M9 5v14' }),
+      h('path', { d: 'M15 5v14' })
+    ),
+    play: h('path', { d: 'm8 5 11 7-11 7Z' }),
+    right: h('path', { d: 'M5 19v-3a6 6 0 0 1 6-6h8m-5-5 5 5-5 5' }),
     search: h('g', null,
       h('circle', { cx: 11, cy: 11, r: 7 }),
       h('path', { d: 'm20 20-4-4' })
-    )
+    ),
+    stop: h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 }),
+    straight: h('path', { d: 'M12 20V5m-5 5 5-5 5 5' })
   };
 
   return h('svg', {
@@ -82,9 +134,10 @@ function Icon({ name, size = 20 }) {
   }, icons[name]);
 }
 
-function MapCanvas({ destination }) {
+function MapCanvas({ destination, navigationActive, stepIndex, currentManeuver, tripComplete }) {
   const routePath = destination.routePath;
   const endpoint = destination.endpoint;
+  const currentPoint = destination.navigationPoints[Math.min(stepIndex, destination.navigationPoints.length - 1)];
 
   return h('div', { className: 'map-canvas', 'aria-label': 'Mapa demonstracyjna Warszawy' },
     h('svg', { className: 'map-art', viewBox: '0 0 1200 800', role: 'img', 'aria-label': 'Stylizowana mapa ulic' },
@@ -133,8 +186,30 @@ function MapCanvas({ destination }) {
       h('g', { transform: `translate(${endpoint[0]} ${endpoint[1]})` },
         h('path', { d: 'M0-28C-17-28-28-16-28 0c0 22 28 47 28 47S28 22 28 0C28-16 17-28 0-28Z', fill: '#172234' }),
         h('circle', { r: 8, fill: '#fff' })
-      )
+      ),
+      navigationActive || tripComplete
+        ? h('g', {
+          className: 'navigation-marker',
+          transform: `translate(${currentPoint[0]} ${currentPoint[1]})`
+        },
+        h('circle', { r: 25, fill: '#ffffff', opacity: 0.92 }),
+        h('circle', { r: 17, fill: tripComplete ? '#1f8a5b' : '#2d6cf6' }),
+        h('path', { d: 'M0-9 7 8 0 5-7 8Z', fill: '#ffffff' })
+        )
+        : null
     ),
+    navigationActive || tripComplete
+      ? h('div', { className: `navigation-instruction${tripComplete ? ' is-complete' : ''}` },
+        h('span', { className: 'maneuver-icon' }, h(Icon, {
+          name: tripComplete ? 'arrive' : currentManeuver.type,
+          size: 28
+        })),
+        h('span', { className: 'instruction-copy' },
+          h('small', null, tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance),
+          h('strong', null, tripComplete ? destination.name : currentManeuver.instruction)
+        )
+      )
+      : null,
     h('div', { className: 'map-toolbar' },
       h('button', { className: 'map-tool', type: 'button', 'aria-label': 'Wyśrodkuj mapę' }, h(Icon, { name: 'compass' })),
       h('div', { className: 'zoom-group' },
@@ -153,10 +228,19 @@ class App extends React.Component {
       destination: DESTINATIONS[1],
       query: '',
       searchOpen: false,
-      recentDestinationIds: ['museum', 'park']
+      recentDestinationIds: ['museum', 'park'],
+      navigationActive: false,
+      navigationPaused: false,
+      stepIndex: 0,
+      tripComplete: false
     };
     this.searchInput = null;
+    this.navigationTimer = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
+    this.advanceNavigation = this.advanceNavigation.bind(this);
+    this.startNavigation = this.startNavigation.bind(this);
+    this.stopNavigation = this.stopNavigation.bind(this);
+    this.toggleNavigationPause = this.toggleNavigationPause.bind(this);
   }
 
   componentDidMount() {
@@ -165,10 +249,15 @@ class App extends React.Component {
 
   componentWillUnmount() {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
+    window.clearInterval(this.navigationTimer);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   }
 
   handleGlobalShortcut(event) {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    if (!this.state.navigationActive && !this.state.tripComplete && this.searchInput
+      && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       this.searchInput.focus();
       this.setState({ searchOpen: true });
@@ -176,7 +265,9 @@ class App extends React.Component {
 
     if (event.key === 'Escape') {
       this.setState({ searchOpen: false });
-      this.searchInput.blur();
+      if (this.searchInput) {
+        this.searchInput.blur();
+      }
     }
   }
 
@@ -192,54 +283,80 @@ class App extends React.Component {
     }));
   }
 
-  renderSearchResults() {
-    const normalizedQuery = this.state.query.trim().toLocaleLowerCase('pl');
-    const matches = DESTINATIONS.filter((destination) => {
-      if (!normalizedQuery) {
-        return true;
-      }
-      return `${destination.name} ${destination.address} ${destination.district}`
-        .toLocaleLowerCase('pl')
-        .includes(normalizedQuery);
-    });
+  announceInstruction(instruction) {
+    if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') {
+      return;
+    }
 
-    return h('div', { className: 'search-results', role: 'listbox', 'aria-label': 'Podpowiedzi miejsc' },
-      h('div', { className: 'search-results-label' }, normalizedQuery ? 'Najlepsze dopasowania' : 'Popularne w pobliżu'),
-      matches.length > 0
-        ? matches.map((destination) => h('button', {
-          className: 'search-result',
-          key: destination.id,
-          type: 'button',
-          role: 'option',
-          onMouseDown: (event) => event.preventDefault(),
-          onClick: () => this.selectDestination(destination)
-        },
-        h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
-        h('span', { className: 'place-copy' },
-          h('strong', null, destination.name),
-          h('small', null, `${destination.address} · ${destination.district}`)
-        ),
-        h('span', { className: 'result-time' }, destination.time)
-        ))
-        : h('p', { className: 'empty-results' }, 'Nie znaleźliśmy takiego miejsca w wersji demonstracyjnej.')
-    );
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(instruction);
+    utterance.lang = 'pl-PL';
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
   }
 
-  render() {
-    const { destination, query, recentDestinationIds, searchOpen } = this.state;
-    const recentDestinations = recentDestinationIds
-      .map((id) => DESTINATIONS.find((item) => item.id === id))
-      .filter(Boolean);
+  scheduleNavigationStep() {
+    window.clearInterval(this.navigationTimer);
+    this.navigationTimer = window.setInterval(this.advanceNavigation, 5000);
+  }
 
-    return h('main', { className: 'app-shell' },
-    h('aside', { className: 'sidebar' },
-      h('header', { className: 'brand-row' },
-        h('a', { className: 'brand', href: '#', 'aria-label': 'MojaMapa — strona główna' },
-          h('span', { className: 'brand-mark' }, h(Icon, { name: 'route', size: 23 })),
-          h('span', null, 'MojaMapa')
-        ),
-        h('button', { className: 'icon-button', type: 'button', 'aria-label': 'Otwórz menu' }, h(Icon, { name: 'menu' }))
-      ),
+  startNavigation() {
+    const firstManeuver = MANEUVERS[this.state.destination.id][0];
+    this.setState({
+      navigationActive: true,
+      navigationPaused: false,
+      stepIndex: 0,
+      tripComplete: false,
+      searchOpen: false
+    }, () => {
+      this.announceInstruction(firstManeuver.instruction);
+      this.scheduleNavigationStep();
+    });
+  }
+
+  advanceNavigation() {
+    const maneuvers = MANEUVERS[this.state.destination.id];
+    const nextIndex = this.state.stepIndex + 1;
+
+    if (nextIndex >= maneuvers.length) {
+      window.clearInterval(this.navigationTimer);
+      this.setState({ navigationActive: false, tripComplete: true });
+      return;
+    }
+
+    this.setState({ stepIndex: nextIndex }, () => {
+      this.announceInstruction(maneuvers[nextIndex].instruction);
+      if (!this.state.navigationPaused) {
+        this.scheduleNavigationStep();
+      }
+    });
+  }
+
+  toggleNavigationPause() {
+    if (this.state.navigationPaused) {
+      this.setState({ navigationPaused: false }, () => this.scheduleNavigationStep());
+      return;
+    }
+
+    window.clearInterval(this.navigationTimer);
+    this.setState({ navigationPaused: true });
+  }
+
+  stopNavigation() {
+    window.clearInterval(this.navigationTimer);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    this.setState({
+      navigationActive: false,
+      navigationPaused: false,
+      stepIndex: 0,
+      tripComplete: false
+    });
+  }
+
+  renderPlannerFlow(query, recentDestinations, searchOpen) {
+    return h('div', { className: 'sidebar-flow planner-flow' },
       h('section', { className: 'journey-panel' },
         h('p', { className: 'eyebrow' }, 'Nowa podróż'),
         h('h1', null, 'Dokąd jedziemy?'),
@@ -289,32 +406,211 @@ class App extends React.Component {
           h(Icon, { name: 'arrow', size: 18 })
           ))
           : h('p', { className: 'empty-recent' }, 'Wybrane miejsca pojawią się tutaj.')
-      ),
-      h('footer', { className: 'voice-card' },
-        h('span', { className: 'voice-icon' }, h(Icon, { name: 'mic', size: 21 })),
-        h('span', { className: 'voice-copy' },
-          h('strong', null, 'Twój głos'),
-          h('small', null, 'Studio nagrań jest gotowe do konfiguracji')
-        ),
-        h('span', { className: 'status-dot', 'aria-label': 'Nie skonfigurowano' })
       )
-    ),
-    h('section', { className: 'map-region' },
-      h(MapCanvas, { destination }),
-      h('div', { className: 'route-summary' },
-        h('div', null,
-          h('span', { className: 'summary-label' }, destination.name),
-          h('strong', null, destination.time),
-          h('small', null, `${destination.distance} · bez opłat`)
-        ),
-        h('button', { className: 'primary-button', type: 'button' },
-          h('span', null, 'Rozpocznij'),
-          h(Icon, { name: 'arrow', size: 18 })
-        )
-      )
-    )
     );
   }
+
+  renderNavigationFlow(destination, maneuvers, currentManeuver) {
+    const progress = Math.round((this.state.stepIndex / (maneuvers.length - 1)) * 100);
+    const visibleManeuvers = maneuvers.slice(this.state.stepIndex, this.state.stepIndex + 3);
+
+    return h('div', { className: 'sidebar-flow navigation-flow' },
+      h('section', { className: 'navigation-overview' },
+        h('p', { className: 'eyebrow' }, this.state.tripComplete
+          ? 'Podróż zakończona'
+          : this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'Nawigacja aktywna'),
+        h('h1', { className: 'navigation-title' }, this.state.tripComplete ? 'Jesteś na miejscu.' : 'Jedziemy.'),
+        h('p', { className: 'intro' }, this.state.tripComplete
+          ? `Dotarłeś do: ${destination.name}.`
+          : 'Symulacja prowadzi po trasie i odczytuje kolejne wskazówki.'),
+        h('div', { className: 'destination-card' },
+          h('span', { className: 'destination-pin' }, h(Icon, { name: 'location', size: 19 })),
+          h('span', { className: 'place-copy' },
+            h('strong', null, destination.name),
+            h('small', null, destination.address)
+          )
+        ),
+        h('div', { className: 'trip-progress', 'aria-label': `Postęp podróży ${progress}%` },
+          h('span', { style: { width: `${progress}%` } })
+        )
+      ),
+      h('section', { className: 'maneuvers-section' },
+        h('div', { className: 'section-heading' },
+          h('h2', null, this.state.tripComplete ? 'Podsumowanie' : 'Dalsza trasa'),
+          h('span', { className: 'step-counter' }, `${this.state.stepIndex + 1}/${maneuvers.length}`)
+        ),
+        this.state.tripComplete
+          ? h('div', { className: 'arrival-note' },
+            h('strong', null, 'Dobra robota.'),
+            h('p', null, 'Możesz zakończyć nawigację i wybrać kolejne miejsce.')
+          )
+          : visibleManeuvers.map((maneuver, index) => h('div', {
+            className: `maneuver-row${index === 0 ? ' is-current' : ''}`,
+            key: `${maneuver.type}-${this.state.stepIndex + index}`
+          },
+          h('span', { className: 'maneuver-list-icon' }, h(Icon, { name: maneuver.type, size: 20 })),
+          h('span', { className: 'maneuver-copy' },
+            h('strong', null, maneuver.instruction),
+            h('small', null, maneuver.distance)
+          )
+          )),
+        !this.state.tripComplete
+          ? h('p', { className: 'current-voice-line', 'aria-live': 'polite' },
+            h(Icon, { name: 'mic', size: 15 }),
+            h('span', null, `Teraz: ${currentManeuver.instruction}`)
+          )
+          : null
+      )
+    );
+  }
+
+  renderVoiceCard() {
+    return h('footer', { className: 'voice-card' },
+      h('span', { className: 'voice-icon' }, h(Icon, { name: 'mic', size: 21 })),
+      h('span', { className: 'voice-copy' },
+        h('strong', null, 'Twój głos'),
+        h('small', null, this.state.navigationActive
+          ? 'Teraz używany jest głos systemowy'
+          : 'Studio nagrań jest gotowe do konfiguracji')
+      ),
+      h('span', { className: 'status-dot', 'aria-label': 'Nie skonfigurowano' })
+    );
+  }
+
+  renderMapFooter(destination, maneuvers) {
+    if (this.state.tripComplete) {
+      return h('div', { className: 'route-summary arrival-summary' },
+        h('div', null,
+          h('span', { className: 'summary-label' }, 'Podróż zakończona'),
+          h('strong', null, destination.name),
+          h('small', null, `${destination.distance} · trasa demonstracyjna`)
+        ),
+        h('button', { className: 'primary-button', type: 'button', onClick: this.stopNavigation },
+          h('span', null, 'Zakończ'),
+          h(Icon, { name: 'stop', size: 17 })
+        )
+      );
+    }
+
+    if (this.state.navigationActive) {
+      const remainingSteps = maneuvers.length - this.state.stepIndex - 1;
+      return h('div', { className: 'route-summary navigation-controls' },
+        h('div', null,
+          h('span', { className: 'summary-label' }, this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'W drodze'),
+          h('strong', null, remainingSteps === 0 ? 'Ostatni manewr' : `${remainingSteps} manewry`),
+          h('small', null, destination.name)
+        ),
+        h('div', { className: 'control-buttons' },
+          h('button', {
+            className: 'secondary-control',
+            type: 'button',
+            onClick: this.toggleNavigationPause,
+            'aria-label': this.state.navigationPaused ? 'Wznów nawigację' : 'Wstrzymaj nawigację'
+          }, h(Icon, { name: this.state.navigationPaused ? 'play' : 'pause', size: 19 })),
+          h('button', { className: 'next-control', type: 'button', onClick: this.advanceNavigation },
+            h('span', null, 'Następny'),
+            h(Icon, { name: 'arrow', size: 17 })
+          ),
+          h('button', {
+            className: 'secondary-control danger-control',
+            type: 'button',
+            onClick: this.stopNavigation,
+            'aria-label': 'Zakończ nawigację'
+          }, h(Icon, { name: 'stop', size: 17 }))
+        )
+      );
+    }
+
+    return h('div', { className: 'route-summary' },
+      h('div', null,
+        h('span', { className: 'summary-label' }, destination.name),
+        h('strong', null, destination.time),
+        h('small', null, `${destination.distance} · bez opłat`)
+      ),
+      h('button', { className: 'primary-button', type: 'button', onClick: this.startNavigation },
+        h('span', null, 'Rozpocznij'),
+        h(Icon, { name: 'arrow', size: 18 })
+      )
+    );
+  }
+
+  renderSearchResults() {
+    const normalizedQuery = this.state.query.trim().toLocaleLowerCase('pl');
+    const matches = DESTINATIONS.filter((destination) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return `${destination.name} ${destination.address} ${destination.district}`
+        .toLocaleLowerCase('pl')
+        .includes(normalizedQuery);
+    });
+
+    return h('div', { className: 'search-results', role: 'listbox', 'aria-label': 'Podpowiedzi miejsc' },
+      h('div', { className: 'search-results-label' }, normalizedQuery ? 'Najlepsze dopasowania' : 'Popularne w pobliżu'),
+      matches.length > 0
+        ? matches.map((destination) => h('button', {
+          className: 'search-result',
+          key: destination.id,
+          type: 'button',
+          role: 'option',
+          onMouseDown: (event) => event.preventDefault(),
+          onClick: () => this.selectDestination(destination)
+        },
+        h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
+        h('span', { className: 'place-copy' },
+          h('strong', null, destination.name),
+          h('small', null, `${destination.address} · ${destination.district}`)
+        ),
+        h('span', { className: 'result-time' }, destination.time)
+        ))
+        : h('p', { className: 'empty-results' }, 'Nie znaleźliśmy takiego miejsca w wersji demonstracyjnej.')
+    );
+  }
+
+  render() {
+    const {
+      destination,
+      query,
+      recentDestinationIds,
+      searchOpen,
+      navigationActive,
+      stepIndex,
+      tripComplete
+    } = this.state;
+    const recentDestinations = recentDestinationIds
+      .map((id) => DESTINATIONS.find((item) => item.id === id))
+      .filter(Boolean);
+    const maneuvers = MANEUVERS[destination.id];
+    const currentManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
+    const navigationMode = navigationActive || tripComplete;
+
+    return h('main', { className: `app-shell${navigationMode ? ' is-navigating' : ''}` },
+      h('aside', { className: 'sidebar' },
+        h('header', { className: 'brand-row' },
+          h('a', { className: 'brand', href: '#', 'aria-label': 'MojaMapa — strona główna' },
+            h('span', { className: 'brand-mark' }, h(Icon, { name: 'route', size: 23 })),
+            h('span', null, 'MojaMapa')
+          ),
+          h('button', { className: 'icon-button', type: 'button', 'aria-label': 'Otwórz menu' }, h(Icon, { name: 'menu' }))
+        ),
+        navigationMode
+          ? this.renderNavigationFlow(destination, maneuvers, currentManeuver)
+          : this.renderPlannerFlow(query, recentDestinations, searchOpen),
+        this.renderVoiceCard()
+      ),
+      h('section', { className: 'map-region' },
+        h(MapCanvas, {
+          destination,
+          navigationActive,
+          stepIndex,
+          currentManeuver,
+          tripComplete
+        }),
+        this.renderMapFooter(destination, maneuvers)
+      )
+    );
+  }
+
 }
 
 ReactDOM.render(h(App), document.getElementById('root'));
