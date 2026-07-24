@@ -175,6 +175,79 @@ h1 {
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.search-area {
+  position: relative;
+  z-index: 6;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+  padding: 8px;
+  background: rgba(255, 255, 253, 0.98);
+  border: 1px solid rgba(23, 34, 52, 0.11);
+  border-radius: 17px;
+  box-shadow: 0 22px 55px rgba(23, 34, 52, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.search-results-label {
+  padding: 8px 10px 7px;
+  color: #8a929c;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search-result {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.search-result:hover,
+.search-result:focus-visible {
+  background: #f0f2f1;
+}
+
+.search-result .place-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.result-time {
+  flex: 0 0 auto;
+  color: #606a76;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.empty-results,
+.empty-recent {
+  color: #858d97;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.empty-results {
+  margin: 4px 10px 10px;
+}
+
+.empty-recent {
+  margin: 18px 8px;
+}
+
 .search-box:focus-within {
   border-color: rgba(45, 108, 246, 0.6);
   box-shadow: 0 0 0 4px rgba(45, 108, 246, 0.1), 0 15px 36px rgba(34, 45, 61, 0.1);
@@ -396,6 +469,7 @@ kbd {
 .route-line {
   stroke: var(--blue);
   stroke-width: 12;
+  transition: d 260ms ease;
 }
 
 .map-labels {

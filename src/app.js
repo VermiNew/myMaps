@@ -2,6 +2,49 @@
 
 const h = React.createElement;
 
+const DESTINATIONS = [
+  {
+    id: 'museum',
+    name: 'Muzeum Narodowe',
+    address: 'Aleje Jerozolimskie 3, Warszawa',
+    district: 'Śródmieście',
+    time: '18 min',
+    distance: '5,7 km',
+    routePath: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235',
+    endpoint: [1095, 171]
+  },
+  {
+    id: 'park',
+    name: 'Park Skaryszewski',
+    address: 'Aleja Zieleniecka, Warszawa',
+    district: 'Praga-Południe',
+    time: '24 min',
+    distance: '8,4 km',
+    routePath: 'M175 625C305 570 410 600 510 545s172-130 290-70 190 160 320 135',
+    endpoint: [1120, 610]
+  },
+  {
+    id: 'library',
+    name: 'Biblioteka Uniwersytecka',
+    address: 'Dobra 56/66, Warszawa',
+    district: 'Powiśle',
+    time: '15 min',
+    distance: '4,3 km',
+    routePath: 'M175 625C295 535 355 420 490 410s195 15 285-75 120-155 210-185',
+    endpoint: [985, 150]
+  },
+  {
+    id: 'station',
+    name: 'Warszawa Centralna',
+    address: 'Aleje Jerozolimskie 54, Warszawa',
+    district: 'Śródmieście',
+    time: '12 min',
+    distance: '3,6 km',
+    routePath: 'M175 625C280 555 315 470 430 445s200 25 305-45 125-110 205-95',
+    endpoint: [940, 305]
+  }
+];
+
 function Icon({ name, size = 20 }) {
   const icons = {
     arrow: h('path', { d: 'M5 12h14M13 6l6 6-6 6' }),
@@ -39,7 +82,10 @@ function Icon({ name, size = 20 }) {
   }, icons[name]);
 }
 
-function MapCanvas() {
+function MapCanvas({ destination }) {
+  const routePath = destination.routePath;
+  const endpoint = destination.endpoint;
+
   return h('div', { className: 'map-canvas', 'aria-label': 'Mapa demonstracyjna Warszawy' },
     h('svg', { className: 'map-art', viewBox: '0 0 1200 800', role: 'img', 'aria-label': 'Stylizowana mapa ulic' },
       h('defs', null,
@@ -71,8 +117,8 @@ function MapCanvas() {
         h('path', { d: 'M920 100c-90 150-115 300-70 460' }),
         h('path', { d: 'M1020 250c-220 15-385 130-500 340' })
       ),
-      h('path', { className: 'route-line-back', d: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235', filter: 'url(#route-shadow)' }),
-      h('path', { className: 'route-line', d: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235' }),
+      h('path', { className: 'route-line-back', d: routePath, filter: 'url(#route-shadow)' }),
+      h('path', { className: 'route-line', d: routePath }),
       h('g', { className: 'map-labels' },
         h('text', { x: 115, y: 150 }, 'Żoliborz'),
         h('text', { x: 475, y: 285 }, 'Śródmieście'),
@@ -84,7 +130,7 @@ function MapCanvas() {
         h('circle', { r: 10, fill: '#2d6cf6' }),
         h('circle', { r: 4, fill: '#ffffff' })
       ),
-      h('g', { transform: 'translate(1095 171)' },
+      h('g', { transform: `translate(${endpoint[0]} ${endpoint[1]})` },
         h('path', { d: 'M0-28C-17-28-28-16-28 0c0 22 28 47 28 47S28 22 28 0C28-16 17-28 0-28Z', fill: '#172234' }),
         h('circle', { r: 8, fill: '#fff' })
       )
@@ -100,8 +146,92 @@ function MapCanvas() {
   );
 }
 
-function App() {
-  return h('main', { className: 'app-shell' },
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      destination: DESTINATIONS[1],
+      query: '',
+      searchOpen: false,
+      recentDestinationIds: ['museum', 'park']
+    };
+    this.searchInput = null;
+    this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
+  }
+
+  componentDidMount() {
+    window.addEventListener('keydown', this.handleGlobalShortcut);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('keydown', this.handleGlobalShortcut);
+  }
+
+  handleGlobalShortcut(event) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.searchInput.focus();
+      this.setState({ searchOpen: true });
+    }
+
+    if (event.key === 'Escape') {
+      this.setState({ searchOpen: false });
+      this.searchInput.blur();
+    }
+  }
+
+  selectDestination(destination) {
+    this.setState((state) => ({
+      destination,
+      query: destination.name,
+      searchOpen: false,
+      recentDestinationIds: [
+        destination.id,
+        ...state.recentDestinationIds.filter((id) => id !== destination.id)
+      ].slice(0, 3)
+    }));
+  }
+
+  renderSearchResults() {
+    const normalizedQuery = this.state.query.trim().toLocaleLowerCase('pl');
+    const matches = DESTINATIONS.filter((destination) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return `${destination.name} ${destination.address} ${destination.district}`
+        .toLocaleLowerCase('pl')
+        .includes(normalizedQuery);
+    });
+
+    return h('div', { className: 'search-results', role: 'listbox', 'aria-label': 'Podpowiedzi miejsc' },
+      h('div', { className: 'search-results-label' }, normalizedQuery ? 'Najlepsze dopasowania' : 'Popularne w pobliżu'),
+      matches.length > 0
+        ? matches.map((destination) => h('button', {
+          className: 'search-result',
+          key: destination.id,
+          type: 'button',
+          role: 'option',
+          onMouseDown: (event) => event.preventDefault(),
+          onClick: () => this.selectDestination(destination)
+        },
+        h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
+        h('span', { className: 'place-copy' },
+          h('strong', null, destination.name),
+          h('small', null, `${destination.address} · ${destination.district}`)
+        ),
+        h('span', { className: 'result-time' }, destination.time)
+        ))
+        : h('p', { className: 'empty-results' }, 'Nie znaleźliśmy takiego miejsca w wersji demonstracyjnej.')
+    );
+  }
+
+  render() {
+    const { destination, query, recentDestinationIds, searchOpen } = this.state;
+    const recentDestinations = recentDestinationIds
+      .map((id) => DESTINATIONS.find((item) => item.id === id))
+      .filter(Boolean);
+
+    return h('main', { className: 'app-shell' },
     h('aside', { className: 'sidebar' },
       h('header', { className: 'brand-row' },
         h('a', { className: 'brand', href: '#', 'aria-label': 'MojaMapa — strona główna' },
@@ -114,10 +244,22 @@ function App() {
         h('p', { className: 'eyebrow' }, 'Nowa podróż'),
         h('h1', null, 'Dokąd jedziemy?'),
         h('p', { className: 'intro' }, 'Wybierz cel. Resztę poprowadzimy spokojnie — i Twoim głosem.'),
-        h('label', { className: 'search-box' },
-          h(Icon, { name: 'search', size: 21 }),
-          h('input', { type: 'search', placeholder: 'Wpisz adres lub miejsce', 'aria-label': 'Cel podróży' }),
-          h('kbd', null, '⌘ K')
+        h('div', { className: 'search-area' },
+          h('label', { className: 'search-box' },
+            h(Icon, { name: 'search', size: 21 }),
+            h('input', {
+              ref: (element) => { this.searchInput = element; },
+              type: 'search',
+              value: query,
+              placeholder: 'Wpisz adres lub miejsce',
+              'aria-label': 'Cel podróży',
+              'aria-expanded': searchOpen,
+              onFocus: () => this.setState({ searchOpen: true }),
+              onChange: (event) => this.setState({ query: event.target.value, searchOpen: true })
+            }),
+            h('kbd', null, '⌘ K')
+          ),
+          searchOpen ? this.renderSearchResults() : null
         ),
         h('button', { className: 'location-button', type: 'button' },
           h(Icon, { name: 'location' }),
@@ -127,24 +269,26 @@ function App() {
       h('section', { className: 'recent-section' },
         h('div', { className: 'section-heading' },
           h('h2', null, 'Ostatnie miejsca'),
-          h('button', { type: 'button' }, 'Wyczyść')
+          h('button', {
+            type: 'button',
+            onClick: () => this.setState({ recentDestinationIds: [] })
+          }, 'Wyczyść')
         ),
-        h('button', { className: 'place-card', type: 'button' },
+        recentDestinations.length > 0
+          ? recentDestinations.map((recentDestination) => h('button', {
+            className: 'place-card',
+            key: recentDestination.id,
+            type: 'button',
+            onClick: () => this.selectDestination(recentDestination)
+          },
           h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
           h('span', { className: 'place-copy' },
-            h('strong', null, 'Muzeum Narodowe'),
-            h('small', null, 'Aleje Jerozolimskie 3, Warszawa')
+            h('strong', null, recentDestination.name),
+            h('small', null, recentDestination.address)
           ),
           h(Icon, { name: 'arrow', size: 18 })
-        ),
-        h('button', { className: 'place-card', type: 'button' },
-          h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
-          h('span', { className: 'place-copy' },
-            h('strong', null, 'Park Skaryszewski'),
-            h('small', null, 'Aleja Zieleniecka, Warszawa')
-          ),
-          h(Icon, { name: 'arrow', size: 18 })
-        )
+          ))
+          : h('p', { className: 'empty-recent' }, 'Wybrane miejsca pojawią się tutaj.')
       ),
       h('footer', { className: 'voice-card' },
         h('span', { className: 'voice-icon' }, h(Icon, { name: 'mic', size: 21 })),
@@ -156,12 +300,12 @@ function App() {
       )
     ),
     h('section', { className: 'map-region' },
-      h(MapCanvas),
+      h(MapCanvas, { destination }),
       h('div', { className: 'route-summary' },
         h('div', null,
-          h('span', { className: 'summary-label' }, 'Przykładowa trasa'),
-          h('strong', null, '24 min'),
-          h('small', null, '8,4 km · bez opłat')
+          h('span', { className: 'summary-label' }, destination.name),
+          h('strong', null, destination.time),
+          h('small', null, `${destination.distance} · bez opłat`)
         ),
         h('button', { className: 'primary-button', type: 'button' },
           h('span', null, 'Rozpocznij'),
@@ -169,7 +313,8 @@ function App() {
         )
       )
     )
-  );
+    );
+  }
 }
 
 ReactDOM.render(h(App), document.getElementById('root'));
