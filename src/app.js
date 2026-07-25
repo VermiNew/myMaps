@@ -3,7 +3,27 @@
 const React = window.React;
 const ReactDOM = window.ReactDOM;
 const h = React.createElement;
-const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+const MAP_STYLES = {
+  streets: 'https://tiles.openfreemap.org/styles/positron',
+  satellite: {
+    version: 8,
+    name: 'Satellite',
+    sources: {
+      'esri-satellite': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: '© Esri'
+      }
+    },
+    layers: [
+      { id: 'satellite', type: 'raster', source: 'esri-satellite', minzoom: 0, maxzoom: 22 }
+    ]
+  }
+};
+const DEFAULT_MAP_STYLE = 'streets';
 const DEFAULT_ORIGIN = [21.0374, 52.2518];
 const TRAVEL_MODES = [
   { id: 'car', label: 'Samochód' },
@@ -444,6 +464,9 @@ function Icon({ name, size = 20 }) {
     ),
     stop: h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 }),
     straight: h('path', { d: 'M12 20V5m-5 5 5-5 5 5' }),
+    layers: h('g', null,
+      h('path', { d: 'M2 12l10-8 10 8M2 17l10-8 10 8M2 22l10-8 10 8' })
+    ),
     trash: h('g', null,
       h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
       h('path', { d: 'M10 11v5M14 11v5' })
@@ -481,9 +504,10 @@ class MapCanvas extends React.Component {
 
   componentDidMount() {
     try {
+      const style = MAP_STYLES[this.props.mapStyle] || MAP_STYLES[DEFAULT_MAP_STYLE];
       this.map = new window.maplibregl.Map({
         container: this.mapContainer,
-        style: MAP_STYLE_URL,
+        style,
         center: [21.03, 52.24],
         zoom: 11.5,
         attributionControl: true
@@ -507,6 +531,14 @@ class MapCanvas extends React.Component {
 
   componentDidUpdate(previousProps) {
     if (!this.map) {
+      return;
+    }
+    if (previousProps.mapStyle !== this.props.mapStyle) {
+      const style = MAP_STYLES[this.props.mapStyle] || MAP_STYLES[DEFAULT_MAP_STYLE];
+      this.map.setStyle(style);
+      this.map.once('style.load', () => {
+        this.updateRoute();
+      });
       return;
     }
     if (previousProps.destination !== this.props.destination) {
@@ -677,8 +709,10 @@ class MapCanvas extends React.Component {
       locationStatus,
       navigationNotice,
       mapZoom,
+      mapStyle,
       onZoomIn,
-      onZoomOut
+      onZoomOut,
+      onMapStyleChange
     } = this.props;
 
     return h('div', { className: 'map-canvas', 'aria-label': 'Interaktywna mapa Warszawy' },
@@ -710,7 +744,13 @@ class MapCanvas extends React.Component {
           )
         )
         : null,
-      h('div', { className: 'map-toolbar' },
+        h('div', { className: 'map-toolbar' },
+        h('button', {
+          className: `map-tool${mapStyle === 'satellite' ? ' is-active' : ''}`,
+          type: 'button',
+          onClick: onMapStyleChange,
+          'aria-label': 'Zmień styl mapy'
+        }, h(Icon, { name: 'layers' })),
         h('button', {
           className: `map-tool${mapZoom !== 1 ? ' is-active' : ''}`,
           type: 'button',
@@ -784,6 +824,7 @@ class App extends React.Component {
       networkOnline: navigator.onLine,
       userCoordinates: null,
       mapZoom: 1,
+      mapStyle: DEFAULT_MAP_STYLE,
       menuOpen: false
     };
     this.searchInput = null;
@@ -1223,6 +1264,12 @@ class App extends React.Component {
 
   resetMapView() {
     this.setState({ mapZoom: 1 });
+  }
+
+  toggleMapStyle() {
+    this.setState((state) => ({
+      mapStyle: state.mapStyle === 'streets' ? 'satellite' : 'streets'
+    }));
   }
 
   async loadVoiceClips() {
@@ -2209,9 +2256,11 @@ class App extends React.Component {
           userCoordinates,
           route,
           mapZoom,
+          mapStyle: this.state.mapStyle,
           onZoomIn: () => this.adjustMapZoom(0.15),
           onZoomOut: () => this.adjustMapZoom(-0.15),
-          onResetMap: this.resetMapView
+          onResetMap: this.resetMapView,
+          onMapStyleChange: this.toggleMapStyle
         }),
         this.renderMapFooter(destination, maneuvers)
       ),
