@@ -1,6 +1,7 @@
 'use strict';
 
-const CACHE_NAME = 'mojamapa-v3';
+const CACHE_NAME = 'mojamapa-v4';
+const VOICE_CATALOG_URL = './audio/default-voice/catalog.json';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,10 +10,6 @@ const CORE_ASSETS = [
   './src/styles.css',
   './src/bootstrap.mjs',
   './src/app.js',
-  './audio/default-voice/arrive.mp3',
-  './audio/default-voice/left.mp3',
-  './audio/default-voice/right.mp3',
-  './audio/default-voice/straight.mp3',
   './vendor/maplibre-gl.css',
   './vendor/maplibre-gl.mjs',
   './vendor/maplibre-gl-shared.mjs',
@@ -21,10 +18,25 @@ const CORE_ASSETS = [
   './vendor/react-dom.production.min.js'
 ];
 
+async function cacheVoiceLibrary(cache) {
+  const catalogResponse = await fetch(VOICE_CATALOG_URL);
+  if (!catalogResponse.ok) {
+    throw new Error('Voice catalog is unavailable.');
+  }
+  const catalog = await catalogResponse.clone().json();
+  await cache.put(VOICE_CATALOG_URL, catalogResponse);
+  await cache.addAll(
+    catalog.clips.map((clip) => `./audio/default-voice/${clip.file}`)
+  );
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(CORE_ASSETS))
+      .then(async (cache) => {
+        await cache.addAll(CORE_ASSETS);
+        await cacheVoiceLibrary(cache);
+      })
       .then(() => self.skipWaiting())
   );
 });
