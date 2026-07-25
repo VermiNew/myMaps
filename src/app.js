@@ -698,6 +698,9 @@ class App extends React.Component {
     this.currentAudioCompletion = null;
     this.voicePlaybackToken = 0;
     this.announcedDistanceThresholds = new Set();
+    this.offRouteSince = null;
+    this.lastRerouteAt = 0;
+    this.rerouteInProgress = false;
     this.searchTimer = null;
     this.searchRequest = null;
     this.routeRequest = null;
@@ -1244,6 +1247,52 @@ class App extends React.Component {
     });
   }
 
+  async recalculateRoute(userCoordinates) {
+    const now = Date.now();
+    if (this.rerouteInProgress || !this.state.navigationActive
+      || !navigator.onLine || now - this.lastRerouteAt < 30000) {
+      return;
+    }
+
+    this.rerouteInProgress = true;
+    this.lastRerouteAt = now;
+    this.offRouteSince = null;
+    const previousRoute = {
+      route: this.state.route,
+      routeManeuvers: this.state.routeManeuvers,
+      routeSummary: this.state.routeSummary
+    };
+    this.setState({ routeStatus: 'loading', routeMessage: 'Zmieniam trasę…' });
+    this.playVoiceClip('route_recalculating').catch(() => {});
+
+    const routeResult = await this.calculateRoute(userCoordinates);
+    if (routeResult && this.state.navigationActive) {
+      this.announcedDistanceThresholds.clear();
+      this.setState({
+        route: routeResult.route,
+        routeManeuvers: routeResult.routeManeuvers,
+        routeSummary: routeResult.summary,
+        routeStatus: 'ready',
+        routeMessage: 'Trasa została zaktualizowana.',
+        stepIndex: 0,
+        routeProgress: 0,
+        distanceToManeuver: routeResult.routeManeuvers[0]?.rawDistance ?? null,
+        remainingDistance: routeResult.summary.distance,
+        remainingDuration: routeResult.summary.duration
+      }, () => {
+        this.playVoiceClip('route_updated').catch(() => {});
+        this.updateNavigationProgress(userCoordinates);
+      });
+    } else if (this.state.navigationActive) {
+      this.setState({
+        ...previousRoute,
+        routeStatus: 'ready',
+        routeMessage: 'Nie udało się zmienić trasy. Prowadzę po poprzedniej.'
+      });
+    }
+    this.rerouteInProgress = false;
+  }
+
   updateNavigationProgress(userCoordinates) {
     const routeCoordinates = this.state.route?.geometry?.coordinates || [];
     const maneuvers = this.state.routeManeuvers || [];
@@ -1263,6 +1312,21 @@ class App extends React.Component {
     if (!routePoint) {
       return;
     }
+    const reliableAccuracy = Number.isFinite(userCoordinates.accuracy)
+      ? userCoordinates.accuracy
+      : 25;
+    const offRouteThreshold = Math.max(45, Math.min(reliableAccuracy * 1.5, 100));
+    if (reliableAccuracy <= 100 && routePoint.distance > offRouteThreshold) {
+      if (this.offRouteSince === null) {
+        this.offRouteSince = Date.now();
+      }
+      if (Date.now() - this.offRouteSince >= 6000) {
+        this.recalculateRoute(userCoordinates);
+      }
+      return;
+    }
+    this.offRouteSince = null;
+
     const routeIndex = routePoint.segmentIndex + routePoint.fraction;
     let stepIndex = maneuvers.findIndex((maneuver) => maneuver.endIndex >= routeIndex);
     if (stepIndex < 0) {
@@ -1366,6 +1430,7 @@ class App extends React.Component {
 
     const firstManeuver = maneuvers[0];
     this.announcedDistanceThresholds.clear();
+    this.offRouteSince = null;
     this.setState({
       navigationActive: true,
       navigationPaused: false,
@@ -1411,6 +1476,8 @@ class App extends React.Component {
       remainingDuration: null,
       tripComplete: false
     });
+    this.offRouteSince = null;
+    this.rerouteInProgress = false;
     this.stopLocationWatch();
   }
 
@@ -1495,7 +1562,9 @@ class App extends React.Component {
         h('h1', { className: 'navigation-title' }, this.state.tripComplete ? 'Jesteś na miejscu.' : 'Jedziemy.'),
         h('p', { className: 'intro' }, this.state.tripComplete
           ? `Dotarłeś do: ${destination.name}.`
-          : 'GPS śledzi Twoją pozycję i prowadzi po wyznaczonej trasie.'),
+          : this.state.routeStatus === 'loading'
+            ? 'Zjechano z trasy. Wyznaczam nowy przebieg…'
+            : 'GPS śledzi Twoją pozycję i prowadzi po wyznaczonej trasie.'),
         h('div', { className: 'destination-card' },
           h('span', { className: 'destination-pin' }, h(Icon, { name: 'location', size: 19 })),
           h('span', { className: 'place-copy' },
