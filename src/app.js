@@ -278,14 +278,27 @@ class MapCanvas extends React.Component {
     if (!this.map) {
       return;
     }
-    if (previousProps.destination !== this.props.destination
-      || previousProps.userCoordinates !== this.props.userCoordinates) {
-      this.updateMarkers();
+    if (previousProps.destination !== this.props.destination) {
+      this.updateDestinationMarker();
       this.fitMap();
+    }
+    if (previousProps.userCoordinates !== this.props.userCoordinates) {
+      this.updateOriginMarker();
+      if (this.props.navigationActive) {
+        this.followUser();
+      } else {
+        this.fitMap();
+      }
+    }
+    if (!previousProps.navigationActive && this.props.navigationActive) {
+      this.updateOriginMarker();
+      this.followUser();
     }
     if (previousProps.route !== this.props.route) {
       this.updateRoute();
-      this.fitMap();
+      if (!this.props.navigationActive) {
+        this.fitMap();
+      }
     }
     if (previousProps.mapZoom !== this.props.mapZoom) {
       if (this.props.mapZoom === 1) {
@@ -324,15 +337,47 @@ class MapCanvas extends React.Component {
     if (!this.map || !this.map.loaded()) {
       return;
     }
-    this.originMarker?.remove();
+    this.updateOriginMarker();
+    this.updateDestinationMarker();
+  }
+
+  updateOriginMarker() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    if (!this.originMarker) {
+      this.originMarker = new window.maplibregl.Marker({
+        element: this.createMarker('map-origin-marker', 'Twoja lokalizacja')
+      }).setLngLat(this.getOrigin()).addTo(this.map);
+    } else {
+      this.originMarker.setLngLat(this.getOrigin());
+    }
+    const element = this.originMarker.getElement();
+    element.classList.toggle('is-navigating', this.props.navigationActive);
+    const heading = this.props.userCoordinates?.heading;
+    element.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
+  }
+
+  updateDestinationMarker() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
     this.destinationMarker?.remove();
-    this.originMarker = new window.maplibregl.Marker({
-      element: this.createMarker('map-origin-marker', 'Początek trasy')
-    }).setLngLat(this.getOrigin()).addTo(this.map);
     this.destinationMarker = new window.maplibregl.Marker({
       element: this.createMarker('map-destination-marker', `Cel: ${this.props.destination.name}`),
       anchor: 'bottom'
     }).setLngLat(this.props.destination.coordinates).addTo(this.map);
+  }
+
+  followUser() {
+    if (!this.map || !this.map.loaded() || !this.props.userCoordinates) {
+      return;
+    }
+    this.map.easeTo({
+      center: this.getOrigin(),
+      zoom: Math.max(this.map.getZoom(), 16),
+      duration: 480
+    });
   }
 
   updateRoute() {

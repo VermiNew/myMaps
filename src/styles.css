@@ -823,12 +823,26 @@ kbd {
 }
 
 .map-origin-marker {
+  position: relative;
   width: 22px;
   height: 22px;
   background: var(--blue);
   border: 5px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 3px 12px rgba(23, 34, 52, 0.28);
+}
+
+.map-origin-marker.is-navigating::after {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  width: 4px;
+  height: 7px;
+  background: #ffffff;
+  clip-path: polygon(50% 0, 100% 100%, 50% 75%, 0 100%);
+  content: "";
+  transform: rotate(var(--heading, 0deg));
+  transform-origin: 3px 6px;
 }
 
 .map-destination-marker {
