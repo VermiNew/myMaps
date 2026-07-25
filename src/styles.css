@@ -1701,3 +1701,67 @@ input:focus-visible {
     display: none;
   }
 }
+
+/* POI browser */
+.poi-section {
+  margin-top: 30px;
+}
+
+.poi-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.poi-chip {
+  padding: 7px 12px;
+  color: #64707c;
+  background: #f0f2ef;
+  border: 1px solid #e3e6e4;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.poi-chip:hover {
+  background: #e9ece8;
+}
+
+.poi-chip.is-active {
+  color: #ffffff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.poi-status {
+  margin: 10px 4px 0;
+  color: #858d97;
+  font-size: 11px;
+}
+
+.poi-status.is-error {
+  color: #9b5b57;
+}
+
+.poi-results {
+  margin-top: 8px;
+}
+
+.poi-results .place-card {
+  padding: 10px 8px;
+}
+
+.poi-marker {
+  width: 16px;
+  height: 16px;
+  background: #bb3b3b;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(23, 34, 52, 0.25);
+  cursor: pointer;
+}
+
+.poi-marker:hover {
+  transform: scale(1.25);
+}

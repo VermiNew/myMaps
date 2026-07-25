@@ -178,6 +178,17 @@ function createRouteOption(route) {
   return { route, routeManeuvers, summary };
 }
 
+const POI_CATEGORIES = [
+  { id: 100, label: 'Restauracje' },
+  { id: 102, label: 'Kawiarnie' },
+  { id: 103, label: 'Bary' },
+  { id: 301, label: 'Stacje paliw' },
+  { id: 300, label: 'Parkingi' },
+  { id: 401, label: 'Apteki' },
+  { id: 400, label: 'Szpitale' },
+  { id: 900, label: 'Bankomaty' }
+];
+
 const DESTINATIONS = [
   {
     id: 'museum',
@@ -498,6 +509,7 @@ class MapCanvas extends React.Component {
     this.map = null;
     this.originMarker = null;
     this.destinationMarker = null;
+    this.poiMarkers = [];
     this.state = { mapError: false };
     this.fitMap = this.fitMap.bind(this);
   }
@@ -563,6 +575,9 @@ class MapCanvas extends React.Component {
         this.fitMap();
       }
     }
+    if (previousProps.poiResults !== this.props.poiResults) {
+      this.updatePoiMarkers();
+    }
     if (previousProps.mapZoom !== this.props.mapZoom) {
       if (this.props.mapZoom === 1) {
         this.fitMap();
@@ -578,6 +593,7 @@ class MapCanvas extends React.Component {
   componentWillUnmount() {
     this.originMarker?.remove();
     this.destinationMarker?.remove();
+    this.removePoiMarkers();
     this.map?.remove();
   }
 
@@ -630,6 +646,33 @@ class MapCanvas extends React.Component {
       element: this.createMarker('map-destination-marker', `Cel: ${this.props.destination.name}`),
       anchor: 'bottom'
     }).setLngLat(this.props.destination.coordinates).addTo(this.map);
+  }
+
+  removePoiMarkers() {
+    this.poiMarkers.forEach((marker) => marker.remove());
+    this.poiMarkers = [];
+  }
+
+  updatePoiMarkers() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    this.removePoiMarkers();
+    const pois = this.props.poiResults || [];
+    pois.forEach((poi) => {
+      const element = document.createElement('div');
+      element.className = 'poi-marker';
+      element.setAttribute('aria-label', poi.name);
+      element.setAttribute('role', 'button');
+      element.setAttribute('tabindex', '0');
+      element.addEventListener('click', () => {
+        this.props.onPoiSelect?.(poi);
+      });
+      const marker = new window.maplibregl.Marker({ element })
+        .setLngLat(poi.coordinates)
+        .addTo(this.map);
+      this.poiMarkers.push(marker);
+    });
   }
 
   followUser() {
@@ -825,7 +868,11 @@ class App extends React.Component {
       userCoordinates: null,
       mapZoom: 1,
       mapStyle: DEFAULT_MAP_STYLE,
-      menuOpen: false
+      menuOpen: false,
+      poiCategory: null,
+      poiResults: [],
+      poiStatus: 'idle',
+      mapPoiMarkers: []
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
@@ -1264,6 +1311,47 @@ class App extends React.Component {
 
   resetMapView() {
     this.setState({ mapZoom: 1 });
+  }
+
+  async fetchPois(categoryId) {
+    if (!categoryId) return;
+    this.setState({ poiCategory: categoryId, poiResults: [], poiStatus: 'loading' });
+    try {
+      const bbox = '20.85,52.10,21.30,52.40';
+      const response = await fetch(`/api/pois?category=${categoryId}&bbox=${encodeURIComponent(bbox)}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Nie udało się pobrać miejsc.');
+      }
+      const pois = (payload.features || []).map((feature) => {
+        const props = feature.properties || {};
+        return {
+          id: props.osm_id || props.id || `${feature.geometry.coordinates.join('-')}`,
+          name: props.name || 'Miejsce',
+          address: [props.street, props.housenumber].filter(Boolean).join(' ') || props.locality || '',
+          coordinates: feature.geometry.coordinates,
+          distance: props.distance || 0,
+          category: props.category_ids?.[0] || categoryId
+        };
+      });
+      this.setState({ poiResults: pois, poiStatus: 'ready' });
+    } catch (error) {
+      this.setState({ poiStatus: 'error', poiMessage: error.message });
+    }
+  }
+
+  selectPoiDestination(poi) {
+    const destination = {
+      id: `poi-${poi.id}`,
+      name: poi.name,
+      address: poi.address || 'Miejsce wyszukane',
+      district: 'Warszawa',
+      coordinates: poi.coordinates,
+      time: 'Wyznacz trasę',
+      distance: '—',
+      isSearchResult: true
+    };
+    this.selectDestination(destination);
   }
 
   toggleMapStyle() {
@@ -1837,6 +1925,46 @@ class App extends React.Component {
           h(Icon, { name: 'arrow', size: 18 })
           ))
           : h('p', { className: 'empty-recent' }, 'Wybrane miejsca pojawią się tutaj.')
+      ),
+      h('section', { className: 'poi-section' },
+        h('div', { className: 'section-heading' },
+          h('h2', null, 'Miejsca w okolicy'),
+          h('button', {
+            type: 'button',
+            onClick: () => this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle' })
+          }, this.state.poiCategory ? 'Wyczyść' : '')
+        ),
+        h('div', { className: 'poi-grid' },
+          POI_CATEGORIES.map((cat) => h('button', {
+            className: `poi-chip${this.state.poiCategory === cat.id ? ' is-active' : ''}`,
+            key: cat.id,
+            type: 'button',
+            onClick: () => this.fetchPois(cat.id)
+          }, cat.label))
+        ),
+        this.state.poiStatus === 'loading'
+          ? h('p', { className: 'poi-status' }, 'Szukam miejsc w Warszawie…')
+          : this.state.poiStatus === 'error'
+            ? h('p', { className: 'poi-status is-error' }, this.state.poiMessage || 'Nie udało się pobrać miejsc.')
+            : this.state.poiResults.length > 0
+              ? h('div', { className: 'poi-results' },
+                this.state.poiResults.slice(0, 10).map((poi) => h('button', {
+                  className: 'place-card',
+                  key: poi.id,
+                  type: 'button',
+                  onClick: () => this.selectPoiDestination(poi)
+                },
+                h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
+                h('span', { className: 'place-copy' },
+                  h('strong', null, poi.name),
+                  h('small', null, poi.address || 'Warszawa')
+                ),
+                h(Icon, { name: 'arrow', size: 18 })
+                ))
+              )
+              : this.state.poiCategory
+                ? h('p', { className: 'poi-status' }, 'Brak miejsc w tej kategorii.')
+                : null
       )
     );
   }
@@ -2257,10 +2385,12 @@ class App extends React.Component {
           route,
           mapZoom,
           mapStyle: this.state.mapStyle,
+          poiResults: this.state.poiResults,
           onZoomIn: () => this.adjustMapZoom(0.15),
           onZoomOut: () => this.adjustMapZoom(-0.15),
           onResetMap: this.resetMapView,
-          onMapStyleChange: this.toggleMapStyle
+          onMapStyleChange: this.toggleMapStyle,
+          onPoiSelect: (poi) => this.selectPoiDestination(poi)
         }),
         this.renderMapFooter(destination, maneuvers)
       ),

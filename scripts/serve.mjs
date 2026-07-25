@@ -149,6 +149,54 @@ async function handleRouting(requestUrl, response) {
   }
 }
 
+async function handlePois(requestUrl, response) {
+  const categoryId = requestUrl.searchParams.get('category');
+  const bbox = requestUrl.searchParams.get('bbox');
+  if (!categoryId || !bbox) {
+    sendJson(response, 400, { error: 'Brak wymaganych parametrów: category, bbox.' });
+    return;
+  }
+  if (!openRouteServiceApiKey) {
+    sendJson(response, 503, { error: 'Wyszukiwanie POI nie zostało skonfigurowane.' });
+    return;
+  }
+
+  const [minLng, minLat, maxLng, maxLat] = bbox.split(',').map(Number);
+  if ([minLng, minLat, maxLng, maxLat].some((v) => !Number.isFinite(v))) {
+    sendJson(response, 400, { error: 'Nieprawidłowe współrzędne bbox.' });
+    return;
+  }
+
+  try {
+    const upstreamResponse = await fetch('https://api.openrouteservice.org/v2/pois', {
+      method: 'POST',
+      headers: {
+        Authorization: openRouteServiceApiKey,
+        'Content-Type': 'application/json',
+        'User-Agent': 'MojaMapa/1.0'
+      },
+      body: JSON.stringify({
+        request: 'pois',
+        geometry: {
+          bbox: [[minLng, minLat], [maxLng, maxLat]]
+        },
+        filter_category_ids: [Number(categoryId)],
+        sort_by: 'distance'
+      })
+    });
+    const payload = await upstreamResponse.json();
+    if (!upstreamResponse.ok) {
+      sendJson(response, upstreamResponse.status, {
+        error: 'Wyszukiwanie miejsc jest chwilowo niedostępne.'
+      });
+      return;
+    }
+    sendJson(response, 200, payload);
+  } catch {
+    sendJson(response, 502, { error: 'Nie udało się połączyć z usługą POI.' });
+  }
+}
+
 createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host}`);
   const pathname = decodeURIComponent(requestUrl.pathname);
@@ -158,6 +206,10 @@ createServer(async (request, response) => {
   }
   if (pathname === '/api/route') {
     await handleRouting(requestUrl, response);
+    return;
+  }
+  if (pathname === '/api/pois') {
+    await handlePois(requestUrl, response);
     return;
   }
 
