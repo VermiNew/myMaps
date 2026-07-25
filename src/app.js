@@ -22,12 +22,40 @@ function formatArrivalTime(seconds) {
   });
 }
 
-function getManeuverType(instruction, isLast) {
-  if (isLast) return 'arrive';
-  const normalizedInstruction = instruction.toLocaleLowerCase('pl');
-  if (normalizedInstruction.includes('lewo')) return 'left';
-  if (normalizedInstruction.includes('prawo')) return 'right';
-  return 'straight';
+function classifyManeuver(step, isLast) {
+  if (isLast || step.type === 10) return { type: 'arrive', voiceId: 'arrive' };
+  const roundaboutExits = [
+    'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
+    'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'
+  ];
+  if (step.type === 7 && step.exit_number >= 1 && step.exit_number <= roundaboutExits.length) {
+    return {
+      type: 'straight',
+      voiceId: `roundabout_exit_${roundaboutExits[step.exit_number - 1]}`
+    };
+  }
+  const maneuverTypes = {
+    0: { type: 'left', voiceId: 'left' },
+    1: { type: 'right', voiceId: 'right' },
+    2: { type: 'left', voiceId: 'turn_sharp_left' },
+    3: { type: 'right', voiceId: 'turn_sharp_right' },
+    4: { type: 'left', voiceId: 'turn_slight_left' },
+    5: { type: 'right', voiceId: 'turn_slight_right' },
+    6: { type: 'straight', voiceId: 'straight' },
+    7: { type: 'straight', voiceId: 'roundabout_enter' },
+    8: { type: 'straight', voiceId: 'roundabout_leave' },
+    9: { type: 'left', voiceId: 'u_turn' },
+    11: { type: 'straight', voiceId: 'straight' },
+    12: { type: 'left', voiceId: 'keep_left' },
+    13: { type: 'right', voiceId: 'keep_right' }
+  };
+  if (maneuverTypes[step.type]) {
+    return maneuverTypes[step.type];
+  }
+  const normalizedInstruction = step.instruction.toLocaleLowerCase('pl');
+  if (normalizedInstruction.includes('lewo')) return { type: 'left', voiceId: 'left' };
+  if (normalizedInstruction.includes('prawo')) return { type: 'right', voiceId: 'right' };
+  return { type: 'straight', voiceId: 'straight' };
 }
 
 function readPosition(position) {
@@ -197,6 +225,43 @@ const VOICE_PHRASES = [
 
 function getDefaultVoiceUrl(phraseId) {
   return `./audio/default-voice/${phraseId}.mp3`;
+}
+
+const DISTANCE_VOICE_PROMPTS = [
+  [10, 'in_10_m'],
+  [20, 'in_20_m'],
+  [30, 'in_30_m'],
+  [40, 'in_40_m'],
+  [50, 'in_50_m'],
+  [60, 'in_60_m'],
+  [70, 'in_70_m'],
+  [80, 'in_80_m'],
+  [90, 'in_90_m'],
+  [100, 'in_100_m'],
+  [150, 'in_150_m'],
+  [200, 'in_200_m'],
+  [300, 'in_300_m'],
+  [400, 'in_400_m'],
+  [500, 'in_500_m'],
+  [600, 'in_600_m'],
+  [700, 'in_700_m'],
+  [800, 'in_800_m'],
+  [900, 'in_900_m'],
+  [1000, 'in_1_km'],
+  [1500, 'in_1_5_km'],
+  [2000, 'in_2_km'],
+  [3000, 'in_3_km'],
+  [5000, 'in_5_km'],
+  [10000, 'in_10_km']
+];
+
+function getDistanceVoiceId(meters) {
+  if (!Number.isFinite(meters) || meters < 15) {
+    return null;
+  }
+  return DISTANCE_VOICE_PROMPTS.reduce((closest, prompt) => (
+    Math.abs(prompt[0] - meters) < Math.abs(closest[0] - meters) ? prompt : closest
+  ))[1];
 }
 
 const VOICE_DATABASE_NAME = 'mojamapa-voice';
@@ -630,6 +695,9 @@ class App extends React.Component {
     this.mediaStream = null;
     this.recordingChunks = [];
     this.currentAudio = null;
+    this.currentAudioCompletion = null;
+    this.voicePlaybackToken = 0;
+    this.announcedDistanceThresholds = new Set();
     this.searchTimer = null;
     this.searchRequest = null;
     this.routeRequest = null;
@@ -670,9 +738,7 @@ class App extends React.Component {
     this.routeRequest?.abort();
     this.stopLocationWatch();
     this.releaseMediaStream();
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-    }
+    this.stopCurrentAudio();
     Object.values(this.state.voiceClips).forEach((clip) => window.URL.revokeObjectURL(clip.url));
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -767,15 +833,18 @@ class App extends React.Component {
       const route = payload.features[0];
       const summary = route.properties.summary;
       const steps = route.properties.segments?.[0]?.steps || [];
-      const routeManeuvers = steps.map((step, index) => ({
-        type: getManeuverType(step.instruction, index === steps.length - 1),
-        distance: formatDistance(step.distance),
-        instruction: step.instruction,
-        rawDistance: step.distance,
-        duration: step.duration,
-        startIndex: step.way_points?.[0] ?? 0,
-        endIndex: step.way_points?.[1] ?? 0
-      }));
+      const routeManeuvers = steps.map((step, index) => {
+        const maneuver = classifyManeuver(step, index === steps.length - 1);
+        return {
+          ...maneuver,
+          distance: formatDistance(step.distance),
+          instruction: step.instruction,
+          rawDistance: step.distance,
+          duration: step.duration,
+          startIndex: step.way_points?.[0] ?? 0,
+          endIndex: step.way_points?.[1] ?? 0
+        };
+      });
       this.setState((state) => ({
         route,
         routeManeuvers,
@@ -1070,14 +1139,61 @@ class App extends React.Component {
   }
 
   playVoiceClip(phraseId) {
+    const playbackToken = this.voicePlaybackToken + 1;
+    this.voicePlaybackToken = playbackToken;
+    return this.playVoiceItem(phraseId, playbackToken);
+  }
+
+  playVoiceItem(phraseId, playbackToken) {
     const clip = this.state.voiceClips[phraseId];
     const audioUrl = clip?.url || getDefaultVoiceUrl(phraseId);
 
+    this.stopCurrentAudio();
+    this.currentAudio = new Audio(audioUrl);
+    return new Promise((resolve, reject) => {
+      const audio = this.currentAudio;
+      const complete = () => {
+        if (this.currentAudioCompletion === complete) {
+          this.currentAudioCompletion = null;
+        }
+        resolve();
+      };
+      this.currentAudioCompletion = complete;
+      audio.onended = complete;
+      audio.onerror = () => {
+        this.currentAudioCompletion = null;
+        reject(new Error(`Voice clip ${phraseId} is unavailable.`));
+      };
+      if (playbackToken !== this.voicePlaybackToken) {
+        this.currentAudioCompletion = null;
+        resolve();
+        return;
+      }
+      audio.play().catch(reject);
+    });
+  }
+
+  async playVoiceSequence(phraseIds) {
+    const playbackToken = this.voicePlaybackToken + 1;
+    this.voicePlaybackToken = playbackToken;
+    this.stopCurrentAudio();
+    for (const phraseId of phraseIds.filter(Boolean)) {
+      if (playbackToken !== this.voicePlaybackToken) {
+        return;
+      }
+      await this.playVoiceItem(phraseId, playbackToken);
+    }
+  }
+
+  stopCurrentAudio() {
     if (this.currentAudio) {
       this.currentAudio.pause();
     }
-    this.currentAudio = new Audio(audioUrl);
-    return this.currentAudio.play();
+    if (this.currentAudioCompletion) {
+      const complete = this.currentAudioCompletion;
+      this.currentAudioCompletion = null;
+      complete();
+    }
   }
 
   async deleteVoiceClip(phraseId) {
@@ -1097,8 +1213,11 @@ class App extends React.Component {
     }
   }
 
-  announceInstruction(instruction, type) {
-    this.playVoiceClip(type).catch(() => {
+  announceInstruction(instruction, voiceId, distance = null) {
+    const phraseIds = voiceId === 'arrive'
+      ? [voiceId]
+      : [getDistanceVoiceId(distance), voiceId];
+    this.playVoiceSequence(phraseIds).catch(() => {
       this.setState({ voiceMessage: `Nie udało się odtworzyć komunikatu: ${instruction}` });
     });
   }
@@ -1170,7 +1289,23 @@ class App extends React.Component {
     const routeProgress = totalDistance > 0
       ? Math.max(0, Math.min(100, Math.round((1 - (remainingDistance / totalDistance)) * 100)))
       : 0;
+    const previousDistanceToManeuver = this.state.distanceToManeuver;
     const stepChanged = stepIndex !== this.state.stepIndex;
+    const crossedThreshold = stepChanged || !Number.isFinite(previousDistanceToManeuver)
+      ? null
+      : [1000, 500, 200, 100, 50, 20]
+        .filter((threshold) => (
+          previousDistanceToManeuver > threshold
+          && distanceToManeuver <= threshold
+          && !this.announcedDistanceThresholds.has(threshold)
+        ))
+        .sort((first, second) => first - second)[0] ?? null;
+
+    if (stepChanged) {
+      this.announcedDistanceThresholds.clear();
+    } else if (crossedThreshold !== null) {
+      this.announcedDistanceThresholds.add(crossedThreshold);
+    }
 
     this.setState({
       stepIndex,
@@ -1180,7 +1315,17 @@ class App extends React.Component {
       remainingDuration
     }, () => {
       if (stepChanged) {
-        this.announceInstruction(currentManeuver.instruction, currentManeuver.type);
+        this.announceInstruction(
+          currentManeuver.instruction,
+          currentManeuver.voiceId || currentManeuver.type,
+          distanceToManeuver
+        );
+      } else if (crossedThreshold !== null) {
+        this.announceInstruction(
+          currentManeuver.instruction,
+          currentManeuver.voiceId || currentManeuver.type,
+          crossedThreshold
+        );
       }
     });
   }
@@ -1220,6 +1365,7 @@ class App extends React.Component {
     }
 
     const firstManeuver = maneuvers[0];
+    this.announcedDistanceThresholds.clear();
     this.setState({
       navigationActive: true,
       navigationPaused: false,
@@ -1231,7 +1377,11 @@ class App extends React.Component {
       tripComplete: false,
       searchOpen: false
     }, () => {
-      this.announceInstruction(firstManeuver.instruction, firstManeuver.type);
+      this.announceInstruction(
+        firstManeuver.instruction,
+        firstManeuver.voiceId || firstManeuver.type,
+        firstManeuver.rawDistance
+      );
       this.startLocationWatch();
     });
   }
@@ -1246,9 +1396,8 @@ class App extends React.Component {
   }
 
   stopNavigation() {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-    }
+    this.voicePlaybackToken += 1;
+    this.stopCurrentAudio();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
