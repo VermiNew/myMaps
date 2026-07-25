@@ -15,6 +15,13 @@ function formatDistance(meters) {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
 }
 
+function formatArrivalTime(seconds) {
+  return new Date(Date.now() + (seconds * 1000)).toLocaleTimeString('pl-PL', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
 function getManeuverType(instruction, isLast) {
   if (isLast) return 'arrive';
   const normalizedInstruction = instruction.toLocaleLowerCase('pl');
@@ -32,6 +39,67 @@ function readPosition(position) {
     speed: position.coords.speed,
     timestamp: position.timestamp
   };
+}
+
+function distanceBetween(first, second) {
+  const toRadians = (value) => value * (Math.PI / 180);
+  const latitudeDelta = toRadians(second[1] - first[1]);
+  const longitudeDelta = toRadians(second[0] - first[0]);
+  const firstLatitude = toRadians(first[1]);
+  const secondLatitude = toRadians(second[1]);
+  const haversine = (Math.sin(latitudeDelta / 2) ** 2)
+    + (Math.cos(firstLatitude) * Math.cos(secondLatitude)
+      * (Math.sin(longitudeDelta / 2) ** 2));
+  return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function findClosestRoutePoint(userCoordinates, routeCoordinates) {
+  if (!userCoordinates || routeCoordinates.length < 2) {
+    return null;
+  }
+  const point = [userCoordinates.longitude, userCoordinates.latitude];
+  let closest = null;
+
+  for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
+    const start = routeCoordinates[index];
+    const end = routeCoordinates[index + 1];
+    const referenceLatitude = ((start[1] + end[1] + point[1]) / 3) * (Math.PI / 180);
+    const longitudeScale = Math.cos(referenceLatitude) * 111320;
+    const latitudeScale = 110540;
+    const segmentX = (end[0] - start[0]) * longitudeScale;
+    const segmentY = (end[1] - start[1]) * latitudeScale;
+    const pointX = (point[0] - start[0]) * longitudeScale;
+    const pointY = (point[1] - start[1]) * latitudeScale;
+    const segmentLengthSquared = (segmentX ** 2) + (segmentY ** 2);
+    const fraction = segmentLengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((pointX * segmentX) + (pointY * segmentY)) / segmentLengthSquared));
+    const coordinate = [
+      start[0] + ((end[0] - start[0]) * fraction),
+      start[1] + ((end[1] - start[1]) * fraction)
+    ];
+    const distance = distanceBetween(point, coordinate);
+
+    if (!closest || distance < closest.distance) {
+      closest = { coordinate, distance, fraction, segmentIndex: index };
+    }
+  }
+  return closest;
+}
+
+function measureRouteFromPoint(routeCoordinates, routePoint, endIndex) {
+  if (!routePoint || routeCoordinates.length < 2 || endIndex <= routePoint.segmentIndex) {
+    return 0;
+  }
+  const finalIndex = Math.min(endIndex, routeCoordinates.length - 1);
+  let distance = distanceBetween(
+    routePoint.coordinate,
+    routeCoordinates[routePoint.segmentIndex + 1]
+  );
+  for (let index = routePoint.segmentIndex + 1; index < finalIndex; index += 1) {
+    distance += distanceBetween(routeCoordinates[index], routeCoordinates[index + 1]);
+  }
+  return distance;
 }
 
 const DESTINATIONS = [
@@ -531,12 +599,17 @@ class App extends React.Component {
       searchMessage: '',
       route: null,
       routeManeuvers: null,
+      routeSummary: null,
       routeStatus: 'idle',
       routeMessage: '',
       recentDestinationIds: ['museum', 'park'],
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
+      routeProgress: 0,
+      distanceToManeuver: null,
+      remainingDistance: null,
+      remainingDuration: null,
       tripComplete: false,
       voiceStudioOpen: false,
       voiceClips: {},
@@ -551,7 +624,6 @@ class App extends React.Component {
     this.searchInput = null;
     this.voiceCloseButton = null;
     this.menuContainer = null;
-    this.navigationTimer = null;
     this.locationWatchId = null;
     this.mediaRecorder = null;
     this.mediaStream = null;
@@ -566,7 +638,6 @@ class App extends React.Component {
     this.handlePositionError = this.handlePositionError.bind(this);
     this.handlePositionUpdate = this.handlePositionUpdate.bind(this);
     this.calculateRoute = this.calculateRoute.bind(this);
-    this.advanceNavigation = this.advanceNavigation.bind(this);
     this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
     this.deleteVoiceClip = this.deleteVoiceClip.bind(this);
     this.focusDestinationSearch = this.focusDestinationSearch.bind(this);
@@ -593,7 +664,6 @@ class App extends React.Component {
   componentWillUnmount() {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
     document.removeEventListener('mousedown', this.handleDocumentPointerDown);
-    window.clearInterval(this.navigationTimer);
     window.clearTimeout(this.searchTimer);
     this.searchRequest?.abort();
     this.routeRequest?.abort();
@@ -665,6 +735,7 @@ class App extends React.Component {
       searchMessage: '',
       route: null,
       routeManeuvers: null,
+      routeSummary: null,
       routeStatus: 'loading',
       routeMessage: '',
       recentDestinationIds: [
@@ -698,11 +769,16 @@ class App extends React.Component {
       const routeManeuvers = steps.map((step, index) => ({
         type: getManeuverType(step.instruction, index === steps.length - 1),
         distance: formatDistance(step.distance),
-        instruction: step.instruction
+        instruction: step.instruction,
+        rawDistance: step.distance,
+        duration: step.duration,
+        startIndex: step.way_points?.[0] ?? 0,
+        endIndex: step.way_points?.[1] ?? 0
       }));
       this.setState((state) => ({
         route,
         routeManeuvers,
+        routeSummary: summary,
         routeStatus: 'ready',
         routeMessage: '',
         destination: {
@@ -711,12 +787,13 @@ class App extends React.Component {
           distance: formatDistance(summary.distance)
         }
       }));
-      return { route, routeManeuvers };
+      return { route, routeManeuvers, summary };
     } catch (error) {
       if (error.name === 'AbortError') return null;
       this.setState({
         route: null,
         routeManeuvers: null,
+        routeSummary: null,
         routeStatus: 'error',
         routeMessage: error.message
       });
@@ -803,6 +880,10 @@ class App extends React.Component {
       locationStatus: 'ready',
       locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
       userCoordinates
+    }, () => {
+      if (this.state.navigationActive && !this.state.navigationPaused) {
+        this.updateNavigationProgress(userCoordinates);
+      }
     });
   }
 
@@ -1028,9 +1109,82 @@ class App extends React.Component {
     return this.state.routeManeuvers || MANEUVERS[this.state.destination.id] || MANEUVERS.park;
   }
 
-  scheduleNavigationStep() {
-    window.clearInterval(this.navigationTimer);
-    this.navigationTimer = window.setInterval(this.advanceNavigation, 5000);
+  completeNavigation() {
+    if (!this.state.navigationActive) {
+      return;
+    }
+    this.stopLocationWatch();
+    this.playVoiceClip('arrive').catch(() => {});
+    this.setState({
+      navigationActive: false,
+      navigationPaused: false,
+      stepIndex: Math.max(0, this.getActiveManeuvers().length - 1),
+      routeProgress: 100,
+      distanceToManeuver: 0,
+      remainingDistance: 0,
+      remainingDuration: 0,
+      tripComplete: true
+    });
+  }
+
+  updateNavigationProgress(userCoordinates) {
+    const routeCoordinates = this.state.route?.geometry?.coordinates || [];
+    const maneuvers = this.state.routeManeuvers || [];
+    if (routeCoordinates.length < 2 || maneuvers.length === 0) {
+      return;
+    }
+
+    const userPoint = [userCoordinates.longitude, userCoordinates.latitude];
+    const destinationDistance = distanceBetween(userPoint, this.state.destination.coordinates);
+    const arrivalRadius = Math.max(25, Math.min(userCoordinates.accuracy || 25, 50));
+    if (destinationDistance <= arrivalRadius) {
+      this.completeNavigation();
+      return;
+    }
+
+    const routePoint = findClosestRoutePoint(userCoordinates, routeCoordinates);
+    if (!routePoint) {
+      return;
+    }
+    const routeIndex = routePoint.segmentIndex + routePoint.fraction;
+    let stepIndex = maneuvers.findIndex((maneuver) => maneuver.endIndex >= routeIndex);
+    if (stepIndex < 0) {
+      stepIndex = maneuvers.length - 1;
+    }
+    stepIndex = Math.max(this.state.stepIndex, stepIndex);
+
+    const currentManeuver = maneuvers[stepIndex];
+    const distanceToManeuver = measureRouteFromPoint(
+      routeCoordinates,
+      routePoint,
+      currentManeuver.endIndex
+    );
+    const remainingDistance = measureRouteFromPoint(
+      routeCoordinates,
+      routePoint,
+      routeCoordinates.length - 1
+    );
+    const totalDistance = this.state.routeSummary?.distance || remainingDistance;
+    const totalDuration = this.state.routeSummary?.duration || 0;
+    const remainingDuration = totalDistance > 0
+      ? totalDuration * (remainingDistance / totalDistance)
+      : 0;
+    const routeProgress = totalDistance > 0
+      ? Math.max(0, Math.min(100, Math.round((1 - (remainingDistance / totalDistance)) * 100)))
+      : 0;
+    const stepChanged = stepIndex !== this.state.stepIndex;
+
+    this.setState({
+      stepIndex,
+      routeProgress,
+      distanceToManeuver,
+      remainingDistance,
+      remainingDuration
+    }, () => {
+      if (stepChanged) {
+        this.announceInstruction(currentManeuver.instruction, currentManeuver.type);
+      }
+    });
   }
 
   async startNavigation() {
@@ -1044,6 +1198,7 @@ class App extends React.Component {
 
     let userCoordinates = this.state.userCoordinates;
     let maneuvers = this.getActiveManeuvers();
+    let routeSummary = this.state.routeSummary;
     if (!userCoordinates) {
       this.setState({ locationStatus: 'locating', locationMessage: 'Ustalam pozycję startową…' });
       try {
@@ -1059,6 +1214,7 @@ class App extends React.Component {
           return;
         }
         maneuvers = routeResult.routeManeuvers;
+        routeSummary = routeResult.summary;
       } catch (error) {
         this.handlePositionError(error);
         return;
@@ -1070,26 +1226,15 @@ class App extends React.Component {
       navigationActive: true,
       navigationPaused: false,
       stepIndex: 0,
+      routeProgress: 0,
+      distanceToManeuver: maneuvers[0].rawDistance ?? null,
+      remainingDistance: routeSummary?.distance ?? null,
+      remainingDuration: routeSummary?.duration ?? null,
       tripComplete: false,
       searchOpen: false
     }, () => {
       this.announceInstruction(firstManeuver.instruction, firstManeuver.type);
       this.startLocationWatch();
-    });
-  }
-
-  advanceNavigation() {
-    const maneuvers = this.getActiveManeuvers();
-    const nextIndex = this.state.stepIndex + 1;
-
-    if (nextIndex >= maneuvers.length) {
-      window.clearInterval(this.navigationTimer);
-      this.setState({ navigationActive: false, tripComplete: true });
-      return;
-    }
-
-    this.setState({ stepIndex: nextIndex }, () => {
-      this.announceInstruction(maneuvers[nextIndex].instruction, maneuvers[nextIndex].type);
     });
   }
 
@@ -1099,12 +1244,10 @@ class App extends React.Component {
       return;
     }
 
-    window.clearInterval(this.navigationTimer);
     this.setState({ navigationPaused: true });
   }
 
   stopNavigation() {
-    window.clearInterval(this.navigationTimer);
     if (this.currentAudio) {
       this.currentAudio.pause();
     }
@@ -1115,6 +1258,10 @@ class App extends React.Component {
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
+      routeProgress: 0,
+      distanceToManeuver: null,
+      remainingDistance: null,
+      remainingDuration: null,
       tripComplete: false
     });
     this.stopLocationWatch();
@@ -1190,7 +1337,7 @@ class App extends React.Component {
   }
 
   renderNavigationFlow(destination, maneuvers, currentManeuver) {
-    const progress = Math.round((this.state.stepIndex / (maneuvers.length - 1)) * 100);
+    const progress = this.state.tripComplete ? 100 : this.state.routeProgress;
     const visibleManeuvers = maneuvers.slice(this.state.stepIndex, this.state.stepIndex + 3);
 
     return h('div', { className: 'sidebar-flow navigation-flow' },
@@ -1415,7 +1562,7 @@ class App extends React.Component {
         h('div', null,
           h('span', { className: 'summary-label' }, 'Podróż zakończona'),
           h('strong', null, destination.name),
-          h('small', null, `${destination.distance} · trasa demonstracyjna`)
+          h('small', null, `${destination.distance} · dotarłeś do celu`)
         ),
         h('button', { className: 'primary-button', type: 'button', onClick: this.stopNavigation },
           h('span', null, 'Zakończ'),
@@ -1425,12 +1572,17 @@ class App extends React.Component {
     }
 
     if (this.state.navigationActive) {
-      const remainingSteps = maneuvers.length - this.state.stepIndex - 1;
+      const remainingDuration = this.state.remainingDuration;
+      const remainingDistance = this.state.remainingDistance;
       return h('div', { className: 'route-summary navigation-controls' },
         h('div', null,
           h('span', { className: 'summary-label' }, this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'W drodze'),
-          h('strong', null, remainingSteps === 0 ? 'Ostatni manewr' : `${remainingSteps} manewry`),
-          h('small', null, destination.name)
+          h('strong', null, remainingDuration === null || remainingDistance === null
+            ? 'Obliczam pozostały czas…'
+            : `${formatDuration(remainingDuration)} · ${formatDistance(remainingDistance)}`),
+          h('small', null, remainingDuration === null
+            ? destination.name
+            : `Przyjazd około ${formatArrivalTime(remainingDuration)} · ${destination.name}`)
         ),
         h('div', { className: 'control-buttons' },
           h('button', {
@@ -1439,10 +1591,6 @@ class App extends React.Component {
             onClick: this.toggleNavigationPause,
             'aria-label': this.state.navigationPaused ? 'Wznów nawigację' : 'Wstrzymaj nawigację'
           }, h(Icon, { name: this.state.navigationPaused ? 'play' : 'pause', size: 19 })),
-          h('button', { className: 'next-control', type: 'button', onClick: this.advanceNavigation },
-            h('span', null, 'Następny'),
-            h(Icon, { name: 'arrow', size: 17 })
-          ),
           h('button', {
             className: 'secondary-control danger-control',
             type: 'button',
@@ -1529,6 +1677,7 @@ class App extends React.Component {
       userCoordinates,
       route,
       routeManeuvers,
+      distanceToManeuver,
       mapZoom,
       menuOpen
     } = this.state;
@@ -1536,7 +1685,10 @@ class App extends React.Component {
       .map((id) => DESTINATIONS.find((item) => item.id === id))
       .filter(Boolean);
     const maneuvers = routeManeuvers || MANEUVERS[destination.id] || MANEUVERS.park;
-    const currentManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
+    const baseManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
+    const currentManeuver = navigationActive && distanceToManeuver !== null
+      ? { ...baseManeuver, distance: formatDistance(distanceToManeuver) }
+      : baseManeuver;
     const navigationMode = navigationActive || tripComplete;
 
     return h('main', { className: `app-shell${navigationMode ? ' is-navigating' : ''}` },
