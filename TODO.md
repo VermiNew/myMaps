@@ -2,27 +2,24 @@
 
 ## 1. Widok satelitarny / terrain
 
-- [ ] Przełącznik stylu mapy (ulice ↔ satelita)
-- [ ] Drugi styl: ESRI World Imagery (darmowy, bez klucza)
-- [ ] Przycisk w pasku narzędzi mapy
+- [x] Przełącznik stylu mapy (ulice ↔ satelita)
+- [x] Drugi styl: ESRI World Imagery (darmowy, bez klucza)
+- [x] Przycisk w pasku narzędzi mapy
 
 ## 2. Eksploracja miejsc (POI)
 
-- [ ] Panel kategorii w sidebarze (restauracje, kawiarnie, stacje paliw, parkingi, apteki, szpitale, bankomaty, sklepy)
-- [ ] Pobieranie POI z ORS `/v2/pois` na podstawie widoku mapy
-- [ ] Marker POI na mapie (klikalny)
-- [ ] Szczegóły miejsca (nazwa, adres, dystans)
+- [x] Panel kategorii w sidebarze (restauracje, kawiarnie, stacje paliw, parkingi, apteki, szpitale, bankomaty)
+- [x] Pobieranie POI z ORS `/v2/pois`
+- [x] Marker POI na mapie (klikalny → ustawia cel)
 
 ## 3. Interakcja z mapą
 
-- [ ] Kliknięcie na mapę → ustaw cel podróży
-- [ ] Popup z informacją o punkcie
+- [x] Kliknięcie na mapę → ustaw cel podróży (z reverse geocode)
 - [ ] Punkty pośrednie (waypoints)
 
 ## 4. Komunikaty głosowe
 
 - [x] Wszystkie 121 fraz wygenerowane (Fish Audio)
-- [ ] Integracja brakujących komunikatów z nawigacją (np. distance prompts, safety alerts)
 
 ## 5. Public transit
 
