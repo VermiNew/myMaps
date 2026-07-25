@@ -23,6 +23,17 @@ function getManeuverType(instruction, isLast) {
   return 'straight';
 }
 
+function readPosition(position) {
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracy: position.coords.accuracy,
+    heading: position.coords.heading,
+    speed: position.coords.speed,
+    timestamp: position.timestamp
+  };
+}
+
 const DESTINATIONS = [
   {
     id: 'museum',
@@ -541,6 +552,7 @@ class App extends React.Component {
     this.voiceCloseButton = null;
     this.menuContainer = null;
     this.navigationTimer = null;
+    this.locationWatchId = null;
     this.mediaRecorder = null;
     this.mediaStream = null;
     this.recordingChunks = [];
@@ -551,6 +563,8 @@ class App extends React.Component {
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
+    this.handlePositionError = this.handlePositionError.bind(this);
+    this.handlePositionUpdate = this.handlePositionUpdate.bind(this);
     this.calculateRoute = this.calculateRoute.bind(this);
     this.advanceNavigation = this.advanceNavigation.bind(this);
     this.closeVoiceStudio = this.closeVoiceStudio.bind(this);
@@ -583,6 +597,7 @@ class App extends React.Component {
     window.clearTimeout(this.searchTimer);
     this.searchRequest?.abort();
     this.routeRequest?.abort();
+    this.stopLocationWatch();
     this.releaseMediaStream();
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -659,11 +674,12 @@ class App extends React.Component {
     }), this.calculateRoute);
   }
 
-  async calculateRoute() {
+  async calculateRoute(startCoordinates = null) {
     this.routeRequest?.abort();
     this.routeRequest = new AbortController();
-    const start = this.state.userCoordinates
-      ? [this.state.userCoordinates.longitude, this.state.userCoordinates.latitude]
+    const routeOrigin = startCoordinates || this.state.userCoordinates;
+    const start = routeOrigin
+      ? [routeOrigin.longitude, routeOrigin.latitude]
       : DEFAULT_ORIGIN;
     const end = this.state.destination.coordinates;
     this.setState({ routeStatus: 'loading', routeMessage: '' });
@@ -695,14 +711,16 @@ class App extends React.Component {
           distance: formatDistance(summary.distance)
         }
       }));
+      return { route, routeManeuvers };
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError') return null;
       this.setState({
         route: null,
         routeManeuvers: null,
         routeStatus: 'error',
         routeMessage: error.message
       });
+      return null;
     }
   }
 
@@ -769,7 +787,58 @@ class App extends React.Component {
     }
   }
 
-  locateUser() {
+  requestCurrentPosition() {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000
+      });
+    });
+  }
+
+  handlePositionUpdate(position) {
+    const userCoordinates = readPosition(position);
+    this.setState({
+      locationStatus: 'ready',
+      locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
+      userCoordinates
+    });
+  }
+
+  handlePositionError(error) {
+    const permissionDenied = error && error.code === 1;
+    this.setState({
+      locationStatus: 'error',
+      locationMessage: permissionDenied
+        ? 'Nie przyznano dostępu do lokalizacji.'
+        : 'Utracono sygnał GPS. Próbuję ponownie.'
+    });
+  }
+
+  startLocationWatch() {
+    if (!navigator.geolocation || this.locationWatchId !== null) {
+      return;
+    }
+    this.locationWatchId = navigator.geolocation.watchPosition(
+      this.handlePositionUpdate,
+      this.handlePositionError,
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 2000
+      }
+    );
+  }
+
+  stopLocationWatch() {
+    if (this.locationWatchId !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(this.locationWatchId);
+      this.locationWatchId = null;
+    }
+  }
+
+  async locateUser() {
     if (!navigator.geolocation) {
       this.setState({
         locationStatus: 'error',
@@ -779,29 +848,19 @@ class App extends React.Component {
     }
 
     this.setState({ locationStatus: 'locating', locationMessage: 'Ustalam Twoją pozycję…' });
-    navigator.geolocation.getCurrentPosition((position) => {
+    try {
+      const position = await this.requestCurrentPosition();
+      const userCoordinates = readPosition(position);
       this.setState({
         locationStatus: 'ready',
-        locationMessage: `Dokładność około ${Math.round(position.coords.accuracy)} m`,
-        userCoordinates: {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        },
+        locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
+        userCoordinates,
         routeStatus: 'loading'
-      }, this.calculateRoute);
-    }, (error) => {
-      const permissionDenied = error && error.code === 1;
-      this.setState({
-        locationStatus: 'error',
-        locationMessage: permissionDenied
-          ? 'Nie przyznano dostępu do lokalizacji.'
-          : 'Nie udało się ustalić pozycji. Spróbuj ponownie.'
       });
-    }, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000
-    });
+      await this.calculateRoute(userCoordinates);
+    } catch (error) {
+      this.handlePositionError(error);
+    }
   }
 
   adjustMapZoom(delta) {
@@ -974,8 +1033,39 @@ class App extends React.Component {
     this.navigationTimer = window.setInterval(this.advanceNavigation, 5000);
   }
 
-  startNavigation() {
-    const firstManeuver = this.getActiveManeuvers()[0];
+  async startNavigation() {
+    if (!navigator.geolocation) {
+      this.setState({
+        locationStatus: 'error',
+        locationMessage: 'Ta przeglądarka nie udostępnia lokalizacji.'
+      });
+      return;
+    }
+
+    let userCoordinates = this.state.userCoordinates;
+    let maneuvers = this.getActiveManeuvers();
+    if (!userCoordinates) {
+      this.setState({ locationStatus: 'locating', locationMessage: 'Ustalam pozycję startową…' });
+      try {
+        const position = await this.requestCurrentPosition();
+        userCoordinates = readPosition(position);
+        this.setState({
+          locationStatus: 'ready',
+          locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
+          userCoordinates
+        });
+        const routeResult = await this.calculateRoute(userCoordinates);
+        if (!routeResult) {
+          return;
+        }
+        maneuvers = routeResult.routeManeuvers;
+      } catch (error) {
+        this.handlePositionError(error);
+        return;
+      }
+    }
+
+    const firstManeuver = maneuvers[0];
     this.setState({
       navigationActive: true,
       navigationPaused: false,
@@ -984,7 +1074,7 @@ class App extends React.Component {
       searchOpen: false
     }, () => {
       this.announceInstruction(firstManeuver.instruction, firstManeuver.type);
-      this.scheduleNavigationStep();
+      this.startLocationWatch();
     });
   }
 
@@ -1000,15 +1090,12 @@ class App extends React.Component {
 
     this.setState({ stepIndex: nextIndex }, () => {
       this.announceInstruction(maneuvers[nextIndex].instruction, maneuvers[nextIndex].type);
-      if (!this.state.navigationPaused) {
-        this.scheduleNavigationStep();
-      }
     });
   }
 
   toggleNavigationPause() {
     if (this.state.navigationPaused) {
-      this.setState({ navigationPaused: false }, () => this.scheduleNavigationStep());
+      this.setState({ navigationPaused: false });
       return;
     }
 
@@ -1030,6 +1117,7 @@ class App extends React.Component {
       stepIndex: 0,
       tripComplete: false
     });
+    this.stopLocationWatch();
   }
 
   renderPlannerFlow(query, recentDestinations, searchOpen) {
@@ -1113,7 +1201,7 @@ class App extends React.Component {
         h('h1', { className: 'navigation-title' }, this.state.tripComplete ? 'Jesteś na miejscu.' : 'Jedziemy.'),
         h('p', { className: 'intro' }, this.state.tripComplete
           ? `Dotarłeś do: ${destination.name}.`
-          : 'Symulacja prowadzi po trasie i odczytuje kolejne wskazówki.'),
+          : 'GPS śledzi Twoją pozycję i prowadzi po wyznaczonej trasie.'),
         h('div', { className: 'destination-card' },
           h('span', { className: 'destination-pin' }, h(Icon, { name: 'location', size: 19 })),
           h('span', { className: 'place-copy' },
