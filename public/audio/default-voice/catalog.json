@@ -31,6 +31,126 @@
       "category": "maneuver",
       "text": "Skręć łagodnie w lewo.",
       "file": "turn_slight_left.mp3"
+    },
+    {
+      "id": "turn_slight_right",
+      "category": "maneuver",
+      "text": "Skręć łagodnie w prawo.",
+      "file": "turn_slight_right.mp3"
+    },
+    {
+      "id": "turn_sharp_left",
+      "category": "maneuver",
+      "text": "Skręć ostro w lewo.",
+      "file": "turn_sharp_left.mp3"
+    },
+    {
+      "id": "turn_sharp_right",
+      "category": "maneuver",
+      "text": "Skręć ostro w prawo.",
+      "file": "turn_sharp_right.mp3"
+    },
+    {
+      "id": "keep_left",
+      "category": "maneuver",
+      "text": "Trzymaj się lewej strony.",
+      "file": "keep_left.mp3"
+    },
+    {
+      "id": "keep_right",
+      "category": "maneuver",
+      "text": "Trzymaj się prawej strony.",
+      "file": "keep_right.mp3"
+    },
+    {
+      "id": "change_lane_left",
+      "category": "maneuver",
+      "text": "Zmień pas na lewy.",
+      "file": "change_lane_left.mp3"
+    },
+    {
+      "id": "change_lane_right",
+      "category": "maneuver",
+      "text": "Zmień pas na prawy.",
+      "file": "change_lane_right.mp3"
+    },
+    {
+      "id": "merge_left",
+      "category": "maneuver",
+      "text": "Włącz się do ruchu z lewej strony.",
+      "file": "merge_left.mp3"
+    },
+    {
+      "id": "merge_right",
+      "category": "maneuver",
+      "text": "Włącz się do ruchu z prawej strony.",
+      "file": "merge_right.mp3"
+    },
+    {
+      "id": "take_ramp_left",
+      "category": "maneuver",
+      "text": "Wjedź na zjazd po lewej stronie.",
+      "file": "take_ramp_left.mp3"
+    },
+    {
+      "id": "take_ramp_right",
+      "category": "maneuver",
+      "text": "Wjedź na zjazd po prawej stronie.",
+      "file": "take_ramp_right.mp3"
+    },
+    {
+      "id": "exit_left",
+      "category": "maneuver",
+      "text": "Zjedź w lewo.",
+      "file": "exit_left.mp3"
+    },
+    {
+      "id": "exit_right",
+      "category": "maneuver",
+      "text": "Zjedź w prawo.",
+      "file": "exit_right.mp3"
+    },
+    {
+      "id": "exit_now",
+      "category": "maneuver",
+      "text": "Zjedź teraz.",
+      "file": "exit_now.mp3"
+    },
+    {
+      "id": "u_turn",
+      "category": "maneuver",
+      "text": "Zawróć.",
+      "file": "u_turn.mp3"
+    },
+    {
+      "id": "u_turn_when_possible",
+      "category": "maneuver",
+      "text": "Zawróć, gdy będzie to możliwe.",
+      "file": "u_turn_when_possible.mp3"
+    },
+    {
+      "id": "continue_road",
+      "category": "maneuver",
+      "text": "Kontynuuj jazdę tą drogą.",
+      "file": "continue_road.mp3"
+    },
+    {
+      "id": "follow_road",
+      "category": "maneuver",
+      "text": "Jedź dalej zgodnie z przebiegiem drogi.",
+      "file": "follow_road.mp3"
+    },
+    {
+      "id": "follow_signs",
+      "category": "maneuver",
+      "text": "Jedź zgodnie ze znakami.",
+      "file": "follow_signs.mp3"
+    },
+    {
+      "id": "stay_lane",
+      "category": "maneuver",
+      "text": "Pozostań na obecnym pasie.",
+      "file": "stay_lane.mp3"
     }
   ]
 }
