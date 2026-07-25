@@ -194,9 +194,10 @@ const VOICE_PHRASES = [
   { id: 'right', label: 'Skręć w prawo', description: 'Odtwarzane przed skrętem w prawo' },
   { id: 'arrive', label: 'Jesteś na miejscu', description: 'Odtwarzane po dotarciu do celu' }
 ];
-const DEFAULT_VOICE_CLIPS = Object.fromEntries(
-  VOICE_PHRASES.map((phrase) => [phrase.id, `./audio/default-voice/${phrase.id}.mp3`])
-);
+
+function getDefaultVoiceUrl(phraseId) {
+  return `./audio/default-voice/${phraseId}.mp3`;
+}
 
 const VOICE_DATABASE_NAME = 'mojamapa-voice';
 const VOICE_STORE_NAME = 'clips';
@@ -1070,10 +1071,7 @@ class App extends React.Component {
 
   playVoiceClip(phraseId) {
     const clip = this.state.voiceClips[phraseId];
-    const audioUrl = clip?.url || DEFAULT_VOICE_CLIPS[phraseId];
-    if (!audioUrl) {
-      return Promise.reject(new Error('Voice clip is unavailable.'));
-    }
+    const audioUrl = clip?.url || getDefaultVoiceUrl(phraseId);
 
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -1392,14 +1390,15 @@ class App extends React.Component {
 
   renderVoiceCard() {
     const clipCount = Object.keys(this.state.voiceClips).length;
-    const maneuvers = MANEUVERS[this.state.destination.id];
+    const maneuvers = this.getActiveManeuvers();
     const currentManeuver = maneuvers[Math.min(this.state.stepIndex, maneuvers.length - 1)];
-    const customVoiceActive = this.state.navigationActive && Boolean(this.state.voiceClips[currentManeuver.type]);
+    const customVoiceActive = this.state.navigationActive
+      && Boolean(currentManeuver && this.state.voiceClips[currentManeuver.type]);
     const statusText = customVoiceActive
       ? 'Teraz odtwarzany jest Twój głos'
       : clipCount > 0
         ? `Głos gotowy · ${clipCount}/4 nagrane lokalnie`
-        : 'Twój wygenerowany głos jest gotowy';
+        : 'Twój głos · 121 komunikatów gotowych';
 
     return h('button', {
       className: `voice-card${clipCount > 0 ? ' is-configured' : ''}`,
