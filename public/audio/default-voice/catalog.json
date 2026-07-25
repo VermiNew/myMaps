@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "model": "s2.1-pro-free",
+  "clips": [
+    {
+      "id": "straight",
+      "category": "maneuver",
+      "text": "Jedź prosto.",
+      "file": "straight.mp3"
+    },
+    {
+      "id": "left",
+      "category": "maneuver",
+      "text": "Skręć w lewo.",
+      "file": "left.mp3"
+    },
+    {
+      "id": "right",
+      "category": "maneuver",
+      "text": "Skręć w prawo.",
+      "file": "right.mp3"
+    },
+    {
+      "id": "arrive",
+      "category": "arrival",
+      "text": "Jesteś na miejscu.",
+      "file": "arrive.mp3"
+    },
+    {
+      "id": "turn_slight_left",
+      "category": "maneuver",
+      "text": "Skręć łagodnie w lewo.",
+      "file": "turn_slight_left.mp3"
+    }
+  ]
+}
