@@ -151,6 +151,198 @@
       "category": "maneuver",
       "text": "Pozostań na obecnym pasie.",
       "file": "stay_lane.mp3"
+    },
+    {
+      "id": "then_left",
+      "category": "sequence",
+      "text": "Następnie skręć w lewo.",
+      "file": "then_left.mp3"
+    },
+    {
+      "id": "then_right",
+      "category": "sequence",
+      "text": "Następnie skręć w prawo.",
+      "file": "then_right.mp3"
+    },
+    {
+      "id": "then_straight",
+      "category": "sequence",
+      "text": "Następnie jedź prosto.",
+      "file": "then_straight.mp3"
+    },
+    {
+      "id": "then_u_turn",
+      "category": "sequence",
+      "text": "Następnie zawróć.",
+      "file": "then_u_turn.mp3"
+    },
+    {
+      "id": "prepare_left",
+      "category": "sequence",
+      "text": "Przygotuj się do skrętu w lewo.",
+      "file": "prepare_left.mp3"
+    },
+    {
+      "id": "prepare_right",
+      "category": "sequence",
+      "text": "Przygotuj się do skrętu w prawo.",
+      "file": "prepare_right.mp3"
+    },
+    {
+      "id": "prepare_u_turn",
+      "category": "sequence",
+      "text": "Przygotuj się do zawrócenia.",
+      "file": "prepare_u_turn.mp3"
+    },
+    {
+      "id": "roundabout_enter",
+      "category": "roundabout",
+      "text": "Wjedź na rondo.",
+      "file": "roundabout_enter.mp3"
+    },
+    {
+      "id": "roundabout_straight",
+      "category": "roundabout",
+      "text": "Na rondzie jedź prosto.",
+      "file": "roundabout_straight.mp3"
+    },
+    {
+      "id": "roundabout_left",
+      "category": "roundabout",
+      "text": "Na rondzie skręć w lewo.",
+      "file": "roundabout_left.mp3"
+    },
+    {
+      "id": "roundabout_right",
+      "category": "roundabout",
+      "text": "Na rondzie skręć w prawo.",
+      "file": "roundabout_right.mp3"
+    },
+    {
+      "id": "roundabout_leave",
+      "category": "roundabout",
+      "text": "Opuść rondo.",
+      "file": "roundabout_leave.mp3"
+    },
+    {
+      "id": "roundabout_exit_first",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz pierwszy zjazd.",
+      "file": "roundabout_exit_first.mp3"
+    },
+    {
+      "id": "roundabout_exit_second",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz drugi zjazd.",
+      "file": "roundabout_exit_second.mp3"
+    },
+    {
+      "id": "roundabout_exit_third",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz trzeci zjazd.",
+      "file": "roundabout_exit_third.mp3"
+    },
+    {
+      "id": "roundabout_exit_fourth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz czwarty zjazd.",
+      "file": "roundabout_exit_fourth.mp3"
+    },
+    {
+      "id": "roundabout_exit_fifth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz piąty zjazd.",
+      "file": "roundabout_exit_fifth.mp3"
+    },
+    {
+      "id": "roundabout_exit_sixth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz szósty zjazd.",
+      "file": "roundabout_exit_sixth.mp3"
+    },
+    {
+      "id": "roundabout_exit_seventh",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz siódmy zjazd.",
+      "file": "roundabout_exit_seventh.mp3"
+    },
+    {
+      "id": "roundabout_exit_eighth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz ósmy zjazd.",
+      "file": "roundabout_exit_eighth.mp3"
+    },
+    {
+      "id": "roundabout_exit_ninth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz dziewiąty zjazd.",
+      "file": "roundabout_exit_ninth.mp3"
+    },
+    {
+      "id": "roundabout_exit_tenth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz dziesiąty zjazd.",
+      "file": "roundabout_exit_tenth.mp3"
+    },
+    {
+      "id": "roundabout_exit_eleventh",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz jedenasty zjazd.",
+      "file": "roundabout_exit_eleventh.mp3"
+    },
+    {
+      "id": "roundabout_exit_twelfth",
+      "category": "roundabout",
+      "text": "Na rondzie wybierz dwunasty zjazd.",
+      "file": "roundabout_exit_twelfth.mp3"
+    },
+    {
+      "id": "head_north",
+      "category": "direction",
+      "text": "Kieruj się na północ.",
+      "file": "head_north.mp3"
+    },
+    {
+      "id": "head_north_east",
+      "category": "direction",
+      "text": "Kieruj się na północny wschód.",
+      "file": "head_north_east.mp3"
+    },
+    {
+      "id": "head_east",
+      "category": "direction",
+      "text": "Kieruj się na wschód.",
+      "file": "head_east.mp3"
+    },
+    {
+      "id": "head_south_east",
+      "category": "direction",
+      "text": "Kieruj się na południowy wschód.",
+      "file": "head_south_east.mp3"
+    },
+    {
+      "id": "head_south",
+      "category": "direction",
+      "text": "Kieruj się na południe.",
+      "file": "head_south.mp3"
+    },
+    {
+      "id": "head_south_west",
+      "category": "direction",
+      "text": "Kieruj się na południowy zachód.",
+      "file": "head_south_west.mp3"
+    },
+    {
+      "id": "head_west",
+      "category": "direction",
+      "text": "Kieruj się na zachód.",
+      "file": "head_west.mp3"
+    },
+    {
+      "id": "head_north_west",
+      "category": "direction",
+      "text": "Kieruj się na północny zachód.",
+      "file": "head_north_west.mp3"
     }
   ]
 }
