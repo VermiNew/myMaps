@@ -493,6 +493,240 @@
       "category": "distance",
       "text": "Za dziesięć kilometrów.",
       "file": "in_10_km.mp3"
+    },
+    {
+      "id": "destination_ahead",
+      "category": "arrival",
+      "text": "Miejsce docelowe jest przed Tobą.",
+      "file": "destination_ahead.mp3"
+    },
+    {
+      "id": "destination_left",
+      "category": "arrival",
+      "text": "Miejsce docelowe będzie po lewej stronie.",
+      "file": "destination_left.mp3"
+    },
+    {
+      "id": "destination_right",
+      "category": "arrival",
+      "text": "Miejsce docelowe będzie po prawej stronie.",
+      "file": "destination_right.mp3"
+    },
+    {
+      "id": "destination_reached",
+      "category": "arrival",
+      "text": "Dotarłeś do miejsca docelowego.",
+      "file": "destination_reached.mp3"
+    },
+    {
+      "id": "internet_lost",
+      "category": "status",
+      "text": "Utracono połączenie z internetem.",
+      "file": "internet_lost.mp3"
+    },
+    {
+      "id": "internet_restored",
+      "category": "status",
+      "text": "Połączenie z internetem zostało przywrócone.",
+      "file": "internet_restored.mp3"
+    },
+    {
+      "id": "offline_mode",
+      "category": "status",
+      "text": "Korzystasz teraz z danych zapisanych offline.",
+      "file": "offline_mode.mp3"
+    },
+    {
+      "id": "gps_lost",
+      "category": "status",
+      "text": "Brak zasięgu Gie Pe Es.",
+      "file": "gps_lost.mp3"
+    },
+    {
+      "id": "gps_weak",
+      "category": "status",
+      "text": "Sygnał Gie Pe Es jest słaby.",
+      "file": "gps_weak.mp3"
+    },
+    {
+      "id": "gps_restored",
+      "category": "status",
+      "text": "Sygnał Gie Pe Es został przywrócony.",
+      "file": "gps_restored.mp3"
+    },
+    {
+      "id": "location_permission_needed",
+      "category": "status",
+      "text": "Włącz dostęp do lokalizacji, aby rozpocząć nawigację.",
+      "file": "location_permission_needed.mp3"
+    },
+    {
+      "id": "route_calculating",
+      "category": "route",
+      "text": "Wyznaczam trasę.",
+      "file": "route_calculating.mp3"
+    },
+    {
+      "id": "route_ready",
+      "category": "route",
+      "text": "Trasa jest gotowa.",
+      "file": "route_ready.mp3"
+    },
+    {
+      "id": "route_recalculating",
+      "category": "route",
+      "text": "Zmieniam trasę.",
+      "file": "route_recalculating.mp3"
+    },
+    {
+      "id": "route_updated",
+      "category": "route",
+      "text": "Trasa została zaktualizowana.",
+      "file": "route_updated.mp3"
+    },
+    {
+      "id": "better_route_found",
+      "category": "route",
+      "text": "Znaleziono szybszą trasę.",
+      "file": "better_route_found.mp3"
+    },
+    {
+      "id": "route_unavailable",
+      "category": "route",
+      "text": "Nie udało się wyznaczyć trasy.",
+      "file": "route_unavailable.mp3"
+    },
+    {
+      "id": "eta_updated",
+      "category": "route",
+      "text": "Godzina przyjazdu została zaktualizowana.",
+      "file": "eta_updated.mp3"
+    },
+    {
+      "id": "navigation_started",
+      "category": "route",
+      "text": "Rozpoczynam nawigację.",
+      "file": "navigation_started.mp3"
+    },
+    {
+      "id": "navigation_paused",
+      "category": "route",
+      "text": "Nawigacja została wstrzymana.",
+      "file": "navigation_paused.mp3"
+    },
+    {
+      "id": "navigation_resumed",
+      "category": "route",
+      "text": "Nawigacja została wznowiona.",
+      "file": "navigation_resumed.mp3"
+    },
+    {
+      "id": "navigation_ended",
+      "category": "route",
+      "text": "Nawigacja została zakończona.",
+      "file": "navigation_ended.mp3"
+    },
+    {
+      "id": "slow_down",
+      "category": "safety",
+      "text": "Zwolnij.",
+      "file": "slow_down.mp3"
+    },
+    {
+      "id": "speed_limit",
+      "category": "safety",
+      "text": "Uwaga, zmiana ograniczenia prędkości.",
+      "file": "speed_limit.mp3"
+    },
+    {
+      "id": "speed_exceeded",
+      "category": "safety",
+      "text": "Przekraczasz dozwoloną prędkość.",
+      "file": "speed_exceeded.mp3"
+    },
+    {
+      "id": "traffic_ahead",
+      "category": "safety",
+      "text": "Przed Tobą utrudnienia w ruchu.",
+      "file": "traffic_ahead.mp3"
+    },
+    {
+      "id": "congestion_ahead",
+      "category": "safety",
+      "text": "Przed Tobą korek.",
+      "file": "congestion_ahead.mp3"
+    },
+    {
+      "id": "accident_ahead",
+      "category": "safety",
+      "text": "Przed Tobą wypadek.",
+      "file": "accident_ahead.mp3"
+    },
+    {
+      "id": "roadworks_ahead",
+      "category": "safety",
+      "text": "Przed Tobą roboty drogowe.",
+      "file": "roadworks_ahead.mp3"
+    },
+    {
+      "id": "hazard_ahead",
+      "category": "safety",
+      "text": "Uwaga, niebezpieczeństwo na drodze.",
+      "file": "hazard_ahead.mp3"
+    },
+    {
+      "id": "road_closed",
+      "category": "safety",
+      "text": "Droga przed Tobą jest zamknięta.",
+      "file": "road_closed.mp3"
+    },
+    {
+      "id": "railway_crossing",
+      "category": "safety",
+      "text": "Zbliżasz się do przejazdu kolejowego.",
+      "file": "railway_crossing.mp3"
+    },
+    {
+      "id": "school_zone",
+      "category": "safety",
+      "text": "Uwaga, strefa szkolna.",
+      "file": "school_zone.mp3"
+    },
+    {
+      "id": "tunnel_ahead",
+      "category": "safety",
+      "text": "Wjedź do tunelu.",
+      "file": "tunnel_ahead.mp3"
+    },
+    {
+      "id": "ferry_ahead",
+      "category": "safety",
+      "text": "Wjedź na prom.",
+      "file": "ferry_ahead.mp3"
+    },
+    {
+      "id": "toll_road",
+      "category": "safety",
+      "text": "Wjeżdżasz na drogę płatną.",
+      "file": "toll_road.mp3"
+    },
+    {
+      "id": "border_crossing",
+      "category": "safety",
+      "text": "Zbliżasz się do przejścia granicznego.",
+      "file": "border_crossing.mp3"
+    },
+    {
+      "id": "battery_low",
+      "category": "status",
+      "text": "Poziom baterii jest niski.",
+      "file": "battery_low.mp3"
+    },
+    {
+      "id": "search_unavailable",
+      "category": "status",
+      "text": "Wyszukiwanie miejsc jest chwilowo niedostępne.",
+      "file": "search_unavailable.mp3"
     }
   ]
 }
