@@ -140,6 +140,24 @@ function measureRouteFromPoint(routeCoordinates, routePoint, endIndex) {
   return distance;
 }
 
+function createRouteOption(route) {
+  const summary = route.properties.summary;
+  const steps = route.properties.segments?.[0]?.steps || [];
+  const routeManeuvers = steps.map((step, index) => {
+    const maneuver = classifyManeuver(step, index === steps.length - 1);
+    return {
+      ...maneuver,
+      distance: formatDistance(step.distance),
+      instruction: step.instruction,
+      rawDistance: step.distance,
+      duration: step.duration,
+      startIndex: step.way_points?.[0] ?? 0,
+      endIndex: step.way_points?.[1] ?? 0
+    };
+  });
+  return { route, routeManeuvers, summary };
+}
+
 const DESTINATIONS = [
   {
     id: 'museum',
@@ -683,6 +701,8 @@ class App extends React.Component {
       route: null,
       routeManeuvers: null,
       routeSummary: null,
+      routeAlternatives: [],
+      selectedRouteIndex: 0,
       routeStatus: 'idle',
       routeMessage: '',
       travelMode: 'car',
@@ -849,6 +869,8 @@ class App extends React.Component {
       route: null,
       routeManeuvers: null,
       routeSummary: null,
+      routeAlternatives: [],
+      selectedRouteIndex: 0,
       routeStatus: 'loading',
       routeMessage: '',
       recentDestinationIds: [
@@ -874,6 +896,9 @@ class App extends React.Component {
     if (this.state.avoidedFeatures.length > 0) {
       routeParameters.set('avoid', this.state.avoidedFeatures.join(','));
     }
+    if (this.state.travelMode === 'car') {
+      routeParameters.set('alternatives', 'true');
+    }
     this.setState({ routeStatus: 'loading', routeMessage: '' });
     try {
       const response = await fetch(
@@ -884,25 +909,14 @@ class App extends React.Component {
       if (!response.ok || !payload.features?.[0]) {
         throw new Error(payload.error || 'Nie udało się wyznaczyć trasy.');
       }
-      const route = payload.features[0];
-      const summary = route.properties.summary;
-      const steps = route.properties.segments?.[0]?.steps || [];
-      const routeManeuvers = steps.map((step, index) => {
-        const maneuver = classifyManeuver(step, index === steps.length - 1);
-        return {
-          ...maneuver,
-          distance: formatDistance(step.distance),
-          instruction: step.instruction,
-          rawDistance: step.distance,
-          duration: step.duration,
-          startIndex: step.way_points?.[0] ?? 0,
-          endIndex: step.way_points?.[1] ?? 0
-        };
-      });
+      const routeAlternatives = payload.features.map(createRouteOption);
+      const { route, routeManeuvers, summary } = routeAlternatives[0];
       this.setState((state) => ({
         route,
         routeManeuvers,
         routeSummary: summary,
+        routeAlternatives,
+        selectedRouteIndex: 0,
         routeStatus: 'ready',
         routeMessage: '',
         destination: {
@@ -918,6 +932,8 @@ class App extends React.Component {
         route: null,
         routeManeuvers: null,
         routeSummary: null,
+        routeAlternatives: [],
+        selectedRouteIndex: 0,
         routeStatus: 'error',
         routeMessage: error.message
       });
@@ -1090,6 +1106,8 @@ class App extends React.Component {
       route: null,
       routeManeuvers: null,
       routeSummary: null,
+      routeAlternatives: [],
+      selectedRouteIndex: 0,
       routeStatus: 'loading',
       routeMessage: ''
     }, this.calculateRoute);
@@ -1100,9 +1118,29 @@ class App extends React.Component {
       avoidedFeatures: state.avoidedFeatures.includes(featureId)
         ? state.avoidedFeatures.filter((item) => item !== featureId)
         : [...state.avoidedFeatures, featureId],
+      routeAlternatives: [],
+      selectedRouteIndex: 0,
       routeStatus: 'loading',
       routeMessage: ''
     }), this.calculateRoute);
+  }
+
+  selectRouteAlternative(selectedRouteIndex) {
+    const routeOption = this.state.routeAlternatives[selectedRouteIndex];
+    if (!routeOption || selectedRouteIndex === this.state.selectedRouteIndex) {
+      return;
+    }
+    this.setState((state) => ({
+      route: routeOption.route,
+      routeManeuvers: routeOption.routeManeuvers,
+      routeSummary: routeOption.summary,
+      selectedRouteIndex,
+      destination: {
+        ...state.destination,
+        time: formatDuration(routeOption.summary.duration),
+        distance: formatDistance(routeOption.summary.distance)
+      }
+    }));
   }
 
   adjustMapZoom(delta) {
@@ -1634,6 +1672,24 @@ class App extends React.Component {
             role: 'status',
             'aria-live': 'polite'
           }, this.state.locationMessage)
+          : null,
+        this.state.routeAlternatives.length > 1
+          ? h('div', { className: 'route-alternatives', 'aria-label': 'Warianty trasy' },
+            h('span', { className: 'route-alternatives-label' }, 'Warianty trasy'),
+            h('div', { className: 'route-alternative-list' },
+              this.state.routeAlternatives.map((routeOption, index) => h('button', {
+                className: `route-alternative${this.state.selectedRouteIndex === index ? ' is-active' : ''}`,
+                key: index,
+                type: 'button',
+                onClick: () => this.selectRouteAlternative(index),
+                'aria-pressed': this.state.selectedRouteIndex === index
+              },
+              h('strong', null, index === 0 ? 'Najszybsza' : `Trasa ${index + 1}`),
+              h('small', null,
+                `${formatDuration(routeOption.summary.duration)} · ${formatDistance(routeOption.summary.distance)}`)
+              ))
+            )
+          )
           : null
       ),
       h('section', { className: 'recent-section' },

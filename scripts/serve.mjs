@@ -92,6 +92,7 @@ async function handleRouting(requestUrl, response) {
   const end = readCoordinates(requestUrl.searchParams.get('end'));
   const mode = requestUrl.searchParams.get('mode') || 'car';
   const profile = routeProfiles[mode];
+  const includeAlternatives = mode === 'car' && requestUrl.searchParams.get('alternatives') === 'true';
   const avoidFeatures = (requestUrl.searchParams.get('avoid') || '')
     .split(',')
     .filter((feature) => allowedAvoidFeatures[mode]?.has(feature));
@@ -124,6 +125,13 @@ async function handleRouting(requestUrl, response) {
           language: 'pl',
           ...(avoidFeatures.length > 0 ? {
             options: { avoid_features: avoidFeatures }
+          } : {}),
+          ...(includeAlternatives ? {
+            alternative_routes: {
+              target_count: 3,
+              weight_factor: 1.4,
+              share_factor: 0.6
+            }
           } : {})
         })
       }

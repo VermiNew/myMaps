@@ -316,6 +316,63 @@ h1 {
   border-color: rgba(36, 94, 71, 0.18);
 }
 
+.route-alternatives {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.route-alternatives-label {
+  color: #7c858f;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.route-alternative-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.route-alternative {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 8px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #e0e3e4;
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.route-alternative strong {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-alternative small {
+  overflow: hidden;
+  color: #7d8690;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-alternative.is-active {
+  color: #ffffff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.route-alternative.is-active small {
+  color: rgba(255, 255, 255, 0.68);
+}
+
 .search-box {
   display: grid;
   grid-template-columns: auto 1fr auto;
