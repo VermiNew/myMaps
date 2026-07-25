@@ -295,10 +295,11 @@ function getDistanceVoiceId(meters) {
 const VOICE_DATABASE_NAME = 'mojamapa-voice';
 const VOICE_STORE_NAME = 'clips';
 const PLACE_HISTORY_KEY = 'mojamapa-place-history-v1';
+const FAVORITE_PLACES_KEY = 'mojamapa-favorite-places-v1';
 
-function readPlaceHistory() {
+function readStoredPlaces(storageKey) {
   try {
-    const places = JSON.parse(window.localStorage.getItem(PLACE_HISTORY_KEY) || '[]');
+    const places = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
     return Array.isArray(places)
       ? places.filter((place) => (
         place
@@ -314,12 +315,42 @@ function readPlaceHistory() {
   }
 }
 
-function writePlaceHistory(places) {
+function writeStoredPlaces(storageKey, places) {
   try {
-    window.localStorage.setItem(PLACE_HISTORY_KEY, JSON.stringify(places));
+    window.localStorage.setItem(storageKey, JSON.stringify(places));
   } catch {
-    // Browsing in private mode can disable storage; navigation still works without history.
+    // Browsing in private mode can disable storage; navigation still works without saved places.
   }
+}
+
+function readSharedRoute() {
+  const parameters = new URLSearchParams(window.location.search);
+  const coordinates = parameters.get('to')?.split(',').map(Number);
+  if (coordinates?.length !== 2 || !coordinates.every(Number.isFinite)) {
+    return null;
+  }
+  const travelMode = TRAVEL_MODES.some((mode) => mode.id === parameters.get('mode'))
+    ? parameters.get('mode')
+    : 'car';
+  const allowedFeatures = new Set(ROUTE_PREFERENCES.map((preference) => preference.id));
+  const avoidedFeatures = (parameters.get('avoid') || '')
+    .split(',')
+    .filter((feature) => allowedFeatures.has(feature));
+  const name = parameters.get('name') || 'Udostępniony cel';
+  return {
+    destination: {
+      id: `shared-${coordinates.join('-')}`,
+      name,
+      address: parameters.get('address') || 'Cel udostępnionej trasy',
+      district: 'Udostępnione',
+      coordinates,
+      time: 'Wyznacz trasę',
+      distance: '—',
+      isSearchResult: true
+    },
+    travelMode,
+    avoidedFeatures
+  };
 }
 
 function openVoiceDatabase() {
@@ -734,7 +765,7 @@ class App extends React.Component {
       routeMessage: '',
       travelMode: 'car',
       avoidedFeatures: ['tollways', 'ferries'],
-      recentDestinations: readPlaceHistory(),
+      recentDestinations: readStoredPlaces(PLACE_HISTORY_KEY),
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
@@ -803,7 +834,18 @@ class App extends React.Component {
     document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
     this.registerServiceWorker();
-    this.calculateRoute();
+    const sharedRoute = readSharedRoute();
+    if (sharedRoute) {
+      this.setState({
+        destination: sharedRoute.destination,
+        query: sharedRoute.destination.name,
+        travelMode: sharedRoute.travelMode,
+        avoidedFeatures: sharedRoute.avoidedFeatures,
+        routeStatus: 'loading'
+      }, this.calculateRoute);
+    } else {
+      this.calculateRoute();
+    }
   }
 
   componentWillUnmount() {
@@ -905,7 +947,7 @@ class App extends React.Component {
         ...state.recentDestinations.filter((place) => place.id !== destination.id)
       ].slice(0, 8)
     }), () => {
-      writePlaceHistory(this.state.recentDestinations);
+      writeStoredPlaces(PLACE_HISTORY_KEY, this.state.recentDestinations);
       this.calculateRoute();
     });
   }
@@ -1728,7 +1770,7 @@ class App extends React.Component {
           h('button', {
             type: 'button',
             onClick: () => {
-              writePlaceHistory([]);
+              writeStoredPlaces(PLACE_HISTORY_KEY, []);
               this.setState({ recentDestinations: [] });
             }
           }, 'Wyczyść')
