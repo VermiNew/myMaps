@@ -343,6 +343,156 @@
       "category": "direction",
       "text": "Kieruj się na północny zachód.",
       "file": "head_north_west.mp3"
+    },
+    {
+      "id": "in_10_m",
+      "category": "distance",
+      "text": "Za dziesięć metrów.",
+      "file": "in_10_m.mp3"
+    },
+    {
+      "id": "in_20_m",
+      "category": "distance",
+      "text": "Za dwadzieścia metrów.",
+      "file": "in_20_m.mp3"
+    },
+    {
+      "id": "in_30_m",
+      "category": "distance",
+      "text": "Za trzydzieści metrów.",
+      "file": "in_30_m.mp3"
+    },
+    {
+      "id": "in_40_m",
+      "category": "distance",
+      "text": "Za czterdzieści metrów.",
+      "file": "in_40_m.mp3"
+    },
+    {
+      "id": "in_50_m",
+      "category": "distance",
+      "text": "Za pięćdziesiąt metrów.",
+      "file": "in_50_m.mp3"
+    },
+    {
+      "id": "in_60_m",
+      "category": "distance",
+      "text": "Za sześćdziesiąt metrów.",
+      "file": "in_60_m.mp3"
+    },
+    {
+      "id": "in_70_m",
+      "category": "distance",
+      "text": "Za siedemdziesiąt metrów.",
+      "file": "in_70_m.mp3"
+    },
+    {
+      "id": "in_80_m",
+      "category": "distance",
+      "text": "Za osiemdziesiąt metrów.",
+      "file": "in_80_m.mp3"
+    },
+    {
+      "id": "in_90_m",
+      "category": "distance",
+      "text": "Za dziewięćdziesiąt metrów.",
+      "file": "in_90_m.mp3"
+    },
+    {
+      "id": "in_100_m",
+      "category": "distance",
+      "text": "Za sto metrów.",
+      "file": "in_100_m.mp3"
+    },
+    {
+      "id": "in_150_m",
+      "category": "distance",
+      "text": "Za sto pięćdziesiąt metrów.",
+      "file": "in_150_m.mp3"
+    },
+    {
+      "id": "in_200_m",
+      "category": "distance",
+      "text": "Za dwieście metrów.",
+      "file": "in_200_m.mp3"
+    },
+    {
+      "id": "in_300_m",
+      "category": "distance",
+      "text": "Za trzysta metrów.",
+      "file": "in_300_m.mp3"
+    },
+    {
+      "id": "in_400_m",
+      "category": "distance",
+      "text": "Za czterysta metrów.",
+      "file": "in_400_m.mp3"
+    },
+    {
+      "id": "in_500_m",
+      "category": "distance",
+      "text": "Za pięćset metrów.",
+      "file": "in_500_m.mp3"
+    },
+    {
+      "id": "in_600_m",
+      "category": "distance",
+      "text": "Za sześćset metrów.",
+      "file": "in_600_m.mp3"
+    },
+    {
+      "id": "in_700_m",
+      "category": "distance",
+      "text": "Za siedemset metrów.",
+      "file": "in_700_m.mp3"
+    },
+    {
+      "id": "in_800_m",
+      "category": "distance",
+      "text": "Za osiemset metrów.",
+      "file": "in_800_m.mp3"
+    },
+    {
+      "id": "in_900_m",
+      "category": "distance",
+      "text": "Za dziewięćset metrów.",
+      "file": "in_900_m.mp3"
+    },
+    {
+      "id": "in_1_km",
+      "category": "distance",
+      "text": "Za jeden kilometr.",
+      "file": "in_1_km.mp3"
+    },
+    {
+      "id": "in_1_5_km",
+      "category": "distance",
+      "text": "Za półtora kilometra.",
+      "file": "in_1_5_km.mp3"
+    },
+    {
+      "id": "in_2_km",
+      "category": "distance",
+      "text": "Za dwa kilometry.",
+      "file": "in_2_km.mp3"
+    },
+    {
+      "id": "in_3_km",
+      "category": "distance",
+      "text": "Za trzy kilometry.",
+      "file": "in_3_km.mp3"
+    },
+    {
+      "id": "in_5_km",
+      "category": "distance",
+      "text": "Za pięć kilometrów.",
+      "file": "in_5_km.mp3"
+    },
+    {
+      "id": "in_10_km",
+      "category": "distance",
+      "text": "Za dziesięć kilometrów.",
+      "file": "in_10_km.mp3"
     }
   ]
 }
