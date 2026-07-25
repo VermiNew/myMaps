@@ -5,6 +5,16 @@ const ReactDOM = window.ReactDOM;
 const h = React.createElement;
 const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const DEFAULT_ORIGIN = [21.0374, 52.2518];
+const TRAVEL_MODES = [
+  { id: 'car', label: 'Samochód' },
+  { id: 'bicycle', label: 'Rower' },
+  { id: 'foot', label: 'Pieszo' }
+];
+const ROUTE_PREFERENCES = [
+  { id: 'tollways', label: 'Drogi płatne', carOnly: true },
+  { id: 'highways', label: 'Autostrady', carOnly: true },
+  { id: 'ferries', label: 'Promy', carOnly: false }
+];
 
 function formatDuration(seconds) {
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -675,6 +685,8 @@ class App extends React.Component {
       routeSummary: null,
       routeStatus: 'idle',
       routeMessage: '',
+      travelMode: 'car',
+      avoidedFeatures: ['tollways', 'ferries'],
       recentDestinationIds: ['museum', 'park'],
       navigationActive: false,
       navigationPaused: false,
@@ -734,6 +746,7 @@ class App extends React.Component {
     this.stopVoiceRecording = this.stopVoiceRecording.bind(this);
     this.stopNavigation = this.stopNavigation.bind(this);
     this.toggleNavigationPause = this.toggleNavigationPause.bind(this);
+    this.toggleRoutePreference = this.toggleRoutePreference.bind(this);
   }
 
   componentDidMount() {
@@ -853,10 +866,18 @@ class App extends React.Component {
       ? [routeOrigin.longitude, routeOrigin.latitude]
       : DEFAULT_ORIGIN;
     const end = this.state.destination.coordinates;
+    const routeParameters = new URLSearchParams({
+      start: start.join(','),
+      end: end.join(','),
+      mode: this.state.travelMode
+    });
+    if (this.state.avoidedFeatures.length > 0) {
+      routeParameters.set('avoid', this.state.avoidedFeatures.join(','));
+    }
     this.setState({ routeStatus: 'loading', routeMessage: '' });
     try {
       const response = await fetch(
-        `/api/route?start=${start.join(',')}&end=${end.join(',')}`,
+        `/api/route?${routeParameters}`,
         { signal: this.routeRequest.signal }
       );
       const payload = await response.json();
@@ -1058,6 +1079,30 @@ class App extends React.Component {
     } catch (error) {
       this.handlePositionError(error);
     }
+  }
+
+  selectTravelMode(travelMode) {
+    if (travelMode === this.state.travelMode) {
+      return;
+    }
+    this.setState({
+      travelMode,
+      route: null,
+      routeManeuvers: null,
+      routeSummary: null,
+      routeStatus: 'loading',
+      routeMessage: ''
+    }, this.calculateRoute);
+  }
+
+  toggleRoutePreference(featureId) {
+    this.setState((state) => ({
+      avoidedFeatures: state.avoidedFeatures.includes(featureId)
+        ? state.avoidedFeatures.filter((item) => item !== featureId)
+        : [...state.avoidedFeatures, featureId],
+      routeStatus: 'loading',
+      routeMessage: ''
+    }), this.calculateRoute);
   }
 
   adjustMapZoom(delta) {
@@ -1530,6 +1575,31 @@ class App extends React.Component {
         h('p', { className: 'eyebrow' }, 'Nowa podróż'),
         h('h1', null, 'Dokąd jedziemy?'),
         h('p', { className: 'intro' }, 'Wybierz cel. Resztę poprowadzimy spokojnie — i Twoim głosem.'),
+        h('div', { className: 'route-options', 'aria-label': 'Sposób i preferencje podróży' },
+          h('div', { className: 'travel-mode-picker', role: 'group', 'aria-label': 'Sposób podróży' },
+            TRAVEL_MODES.map((mode) => h('button', {
+              className: `travel-mode${this.state.travelMode === mode.id ? ' is-active' : ''}`,
+              key: mode.id,
+              type: 'button',
+              onClick: () => this.selectTravelMode(mode.id),
+              'aria-pressed': this.state.travelMode === mode.id
+            }, mode.label))
+          ),
+          h('div', { className: 'route-preferences' },
+            ROUTE_PREFERENCES
+              .filter((preference) => !preference.carOnly || this.state.travelMode === 'car')
+              .map((preference) => {
+                const avoided = this.state.avoidedFeatures.includes(preference.id);
+                return h('button', {
+                  className: `route-preference${avoided ? ' is-active' : ''}`,
+                  key: preference.id,
+                  type: 'button',
+                  onClick: () => this.toggleRoutePreference(preference.id),
+                  'aria-pressed': avoided
+                }, `${avoided ? 'Omijaj' : 'Zezwalaj'}: ${preference.label.toLocaleLowerCase('pl')}`);
+              })
+          )
+        ),
         h('div', { className: 'search-area' },
           h('label', { className: 'search-box' },
             h(Icon, { name: 'search', size: 21 }),
@@ -1861,13 +1931,23 @@ class App extends React.Component {
       );
     }
 
+    const travelModeLabel = TRAVEL_MODES
+      .find((mode) => mode.id === this.state.travelMode)?.label.toLocaleLowerCase('pl') || 'trasa';
+    const routeDescription = [
+      travelModeLabel,
+      this.state.avoidedFeatures.includes('tollways') && this.state.travelMode === 'car'
+        ? 'bez dróg płatnych'
+        : null,
+      this.state.avoidedFeatures.includes('ferries') ? 'bez promów' : null
+    ].filter(Boolean).join(' · ');
+
     return h('div', { className: 'route-summary' },
       h('div', null,
         h('span', { className: 'summary-label' }, destination.name),
         h('strong', null, this.state.routeStatus === 'loading' ? 'Wyznaczam…' : destination.time),
         h('small', null, this.state.routeStatus === 'error'
           ? this.state.routeMessage
-          : `${destination.distance} · bez opłat`)
+          : `${destination.distance} · ${routeDescription}`)
       ),
       h('button', {
         className: 'primary-button',

@@ -16,6 +16,16 @@ try {
 }
 
 const openRouteServiceApiKey = process.env.OPENROUTESERVICE_API_KEY;
+const routeProfiles = {
+  car: 'driving-car',
+  bicycle: 'cycling-regular',
+  foot: 'foot-walking'
+};
+const allowedAvoidFeatures = {
+  car: new Set(['tollways', 'highways', 'ferries']),
+  bicycle: new Set(['ferries']),
+  foot: new Set(['ferries'])
+};
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -80,8 +90,17 @@ function readCoordinates(value) {
 async function handleRouting(requestUrl, response) {
   const start = readCoordinates(requestUrl.searchParams.get('start'));
   const end = readCoordinates(requestUrl.searchParams.get('end'));
+  const mode = requestUrl.searchParams.get('mode') || 'car';
+  const profile = routeProfiles[mode];
+  const avoidFeatures = (requestUrl.searchParams.get('avoid') || '')
+    .split(',')
+    .filter((feature) => allowedAvoidFeatures[mode]?.has(feature));
   if (!start || !end) {
     sendJson(response, 400, { error: 'Nieprawidłowe współrzędne trasy.' });
+    return;
+  }
+  if (!profile) {
+    sendJson(response, 400, { error: 'Nieobsługiwany sposób podróży.' });
     return;
   }
   if (!openRouteServiceApiKey) {
@@ -91,7 +110,7 @@ async function handleRouting(requestUrl, response) {
 
   try {
     const upstreamResponse = await fetch(
-      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
       {
         method: 'POST',
         headers: {
@@ -102,7 +121,10 @@ async function handleRouting(requestUrl, response) {
         body: JSON.stringify({
           coordinates: [start, end],
           instructions: true,
-          language: 'pl'
+          language: 'pl',
+          ...(avoidFeatures.length > 0 ? {
+            options: { avoid_features: avoidFeatures }
+          } : {})
         })
       }
     );
