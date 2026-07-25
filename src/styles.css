@@ -1765,3 +1765,17 @@ input:focus-visible {
 .poi-marker:hover {
   transform: scale(1.25);
 }
+
+.click-marker {
+  width: 20px;
+  height: 20px;
+  background: var(--blue);
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 6px;
+  box-shadow: 0 3px 12px rgba(23, 34, 52, 0.3);
+  transform: rotate(-45deg);
+}
+
+.map-click-confirm > div:first-child {
+  max-width: 300px;
+}

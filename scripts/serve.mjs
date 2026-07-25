@@ -82,6 +82,44 @@ async function handleGeocoding(requestUrl, response) {
   }
 }
 
+async function handleReverseGeocode(requestUrl, response) {
+  const lat = requestUrl.searchParams.get('lat');
+  const lng = requestUrl.searchParams.get('lng');
+  if (!lat || !lng || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+    sendJson(response, 400, { error: 'Nieprawidłowe współrzędne.' });
+    return;
+  }
+  if (!openRouteServiceApiKey) {
+    sendJson(response, 503, { error: 'Geokodowanie nie zostało skonfigurowane.' });
+    return;
+  }
+
+  const upstreamUrl = new URL('https://api.openrouteservice.org/geocode/reverse');
+  upstreamUrl.searchParams.set('point.lat', lat);
+  upstreamUrl.searchParams.set('point.lon', lng);
+  upstreamUrl.searchParams.set('size', '1');
+  upstreamUrl.searchParams.set('lang', 'pl');
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      headers: {
+        Authorization: openRouteServiceApiKey,
+        'User-Agent': 'MojaMapa/1.0'
+      }
+    });
+    const payload = await upstreamResponse.json();
+    if (!upstreamResponse.ok) {
+      sendJson(response, upstreamResponse.status, {
+        error: 'Geokodowanie jest chwilowo niedostępne.'
+      });
+      return;
+    }
+    sendJson(response, 200, payload);
+  } catch {
+    sendJson(response, 502, { error: 'Nie udało się połączyć z usługą geokodowania.' });
+  }
+}
+
 function readCoordinates(value) {
   const coordinates = value?.split(',').map(Number);
   return coordinates?.length === 2 && coordinates.every(Number.isFinite) ? coordinates : null;
@@ -202,6 +240,10 @@ createServer(async (request, response) => {
   const pathname = decodeURIComponent(requestUrl.pathname);
   if (pathname === '/api/geocode') {
     await handleGeocoding(requestUrl, response);
+    return;
+  }
+  if (pathname === '/api/reverse-geocode') {
+    await handleReverseGeocode(requestUrl, response);
     return;
   }
   if (pathname === '/api/route') {

@@ -510,6 +510,7 @@ class MapCanvas extends React.Component {
     this.originMarker = null;
     this.destinationMarker = null;
     this.poiMarkers = [];
+    this.clickMarker = null;
     this.state = { mapError: false };
     this.fitMap = this.fitMap.bind(this);
   }
@@ -530,6 +531,9 @@ class MapCanvas extends React.Component {
         this.updateMarkers();
         this.updateRoute();
         this.fitMap();
+      });
+      this.map.on('click', (event) => {
+        this.props.onMapClick?.([event.lngLat.lng, event.lngLat.lat]);
       });
       this.map.on('error', (event) => {
         if (!event.error || !this.map.loaded()) {
@@ -578,6 +582,9 @@ class MapCanvas extends React.Component {
     if (previousProps.poiResults !== this.props.poiResults) {
       this.updatePoiMarkers();
     }
+    if (previousProps.clickedLocation !== this.props.clickedLocation) {
+      this.updateClickMarker();
+    }
     if (previousProps.mapZoom !== this.props.mapZoom) {
       if (this.props.mapZoom === 1) {
         this.fitMap();
@@ -591,9 +598,13 @@ class MapCanvas extends React.Component {
   }
 
   componentWillUnmount() {
+    if (this.map) {
+      this.map.off('click');
+    }
     this.originMarker?.remove();
     this.destinationMarker?.remove();
     this.removePoiMarkers();
+    this.clickMarker?.remove();
     this.map?.remove();
   }
 
@@ -673,6 +684,22 @@ class MapCanvas extends React.Component {
         .addTo(this.map);
       this.poiMarkers.push(marker);
     });
+  }
+
+  updateClickMarker() {
+    this.clickMarker?.remove();
+    this.clickMarker = null;
+    const location = this.props.clickedLocation;
+    if (!location || !this.map || !this.map.loaded()) {
+      return;
+    }
+    const element = document.createElement('div');
+    element.className = 'click-marker';
+    element.setAttribute('aria-label', 'Wybrane miejsce');
+    element.setAttribute('role', 'img');
+    this.clickMarker = new window.maplibregl.Marker({ element })
+      .setLngLat(location)
+      .addTo(this.map);
   }
 
   followUser() {
@@ -872,7 +899,10 @@ class App extends React.Component {
       poiCategory: null,
       poiResults: [],
       poiStatus: 'idle',
-      mapPoiMarkers: []
+      mapPoiMarkers: [],
+      clickedLocation: null,
+      clickedLocationName: '',
+      clickedLocationStatus: 'idle'
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
@@ -1338,6 +1368,47 @@ class App extends React.Component {
     } catch (error) {
       this.setState({ poiStatus: 'error', poiMessage: error.message });
     }
+  }
+
+  async handleMapClick(coordinates) {
+    this.setState({
+      clickedLocation: coordinates,
+      clickedLocationName: '',
+      clickedLocationStatus: 'loading'
+    });
+    try {
+      const response = await fetch(
+        `/api/reverse-geocode?lat=${coordinates[1]}&lng=${coordinates[0]}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error();
+      const feature = payload.features?.[0];
+      const name = feature?.properties?.name || feature?.properties?.label || 'Wybrane miejsce';
+      this.setState({ clickedLocationName: name, clickedLocationStatus: 'ready' });
+    } catch {
+      this.setState({ clickedLocationName: 'Wybrane miejsce', clickedLocationStatus: 'ready' });
+    }
+  }
+
+  confirmMapLocation() {
+    const { clickedLocation, clickedLocationName } = this.state;
+    if (!clickedLocation) return;
+    const destination = {
+      id: `clicked-${clickedLocation.join('-')}`,
+      name: clickedLocationName,
+      address: `${clickedLocation[1].toFixed(5)}, ${clickedLocation[0].toFixed(5)}`,
+      district: 'Wybrane na mapie',
+      coordinates: clickedLocation,
+      time: 'Wyznacz trasę',
+      distance: '—',
+      isSearchResult: true
+    };
+    this.setState({ clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle' });
+    this.selectDestination(destination);
+  }
+
+  cancelMapClick() {
+    this.setState({ clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle' });
   }
 
   selectPoiDestination(poi) {
@@ -2193,6 +2264,37 @@ class App extends React.Component {
   }
 
   renderMapFooter(destination, maneuvers) {
+    if (this.state.clickedLocation) {
+      return h('div', { className: 'route-summary map-click-confirm' },
+        h('div', null,
+          h('span', { className: 'summary-label' }, this.state.clickedLocationStatus === 'loading'
+            ? 'Sprawdzam miejsce…'
+            : 'Kliknięto na mapie'),
+          h('strong', null, this.state.clickedLocationStatus === 'loading'
+            ? '…'
+            : this.state.clickedLocationName),
+          h('small', null, 'Wybierz poniżej, aby ustawić jako cel')
+        ),
+        h('div', { className: 'control-buttons' },
+          h('button', {
+            className: 'primary-button',
+            type: 'button',
+            onClick: () => this.confirmMapLocation(),
+            disabled: this.state.clickedLocationStatus === 'loading'
+          },
+            h('span', null, 'Jedź tutaj'),
+            h(Icon, { name: 'arrow', size: 17 })
+          ),
+          h('button', {
+            className: 'secondary-control danger-control',
+            type: 'button',
+            onClick: () => this.cancelMapClick(),
+            'aria-label': 'Anuluj'
+          }, h(Icon, { name: 'close', size: 17 }))
+        )
+      );
+    }
+
     if (this.state.tripComplete) {
       return h('div', { className: 'route-summary arrival-summary' },
         h('div', null,
@@ -2390,7 +2492,9 @@ class App extends React.Component {
           onZoomOut: () => this.adjustMapZoom(-0.15),
           onResetMap: this.resetMapView,
           onMapStyleChange: this.toggleMapStyle,
-          onPoiSelect: (poi) => this.selectPoiDestination(poi)
+          onPoiSelect: (poi) => this.selectPoiDestination(poi),
+          onMapClick: this.handleMapClick,
+          clickedLocation: this.state.clickedLocation
         }),
         this.renderMapFooter(destination, maneuvers)
       ),
