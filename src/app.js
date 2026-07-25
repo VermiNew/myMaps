@@ -589,6 +589,7 @@ class MapCanvas extends React.Component {
       currentManeuver,
       tripComplete,
       locationStatus,
+      navigationNotice,
       mapZoom,
       onZoomIn,
       onZoomOut
@@ -603,6 +604,12 @@ class MapCanvas extends React.Component {
         ? h('div', { className: 'map-error', role: 'status' },
           h('strong', null, 'Mapa jest chwilowo niedostępna'),
           h('span', null, 'Sprawdź połączenie z internetem i odśwież stronę.')
+        )
+        : null,
+      navigationNotice
+        ? h('div', { className: 'navigation-notice', role: 'status', 'aria-live': 'polite' },
+          h(Icon, { name: navigationNotice.icon, size: 16 }),
+          h('span', null, navigationNotice.text)
         )
         : null,
       navigationActive || tripComplete
@@ -683,6 +690,8 @@ class App extends React.Component {
       voiceMessage: '',
       locationStatus: 'idle',
       locationMessage: '',
+      gpsSignal: 'idle',
+      networkOnline: navigator.onLine,
       userCoordinates: null,
       mapZoom: 1,
       menuOpen: false
@@ -707,6 +716,8 @@ class App extends React.Component {
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
+    this.handleNetworkOffline = this.handleNetworkOffline.bind(this);
+    this.handleNetworkOnline = this.handleNetworkOnline.bind(this);
     this.handlePositionError = this.handlePositionError.bind(this);
     this.handlePositionUpdate = this.handlePositionUpdate.bind(this);
     this.calculateRoute = this.calculateRoute.bind(this);
@@ -727,6 +738,8 @@ class App extends React.Component {
 
   componentDidMount() {
     window.addEventListener('keydown', this.handleGlobalShortcut);
+    window.addEventListener('offline', this.handleNetworkOffline);
+    window.addEventListener('online', this.handleNetworkOnline);
     document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
     this.registerServiceWorker();
@@ -735,6 +748,8 @@ class App extends React.Component {
 
   componentWillUnmount() {
     window.removeEventListener('keydown', this.handleGlobalShortcut);
+    window.removeEventListener('offline', this.handleNetworkOffline);
+    window.removeEventListener('online', this.handleNetworkOnline);
     document.removeEventListener('mousedown', this.handleDocumentPointerDown);
     window.clearTimeout(this.searchTimer);
     this.searchRequest?.abort();
@@ -779,6 +794,21 @@ class App extends React.Component {
   handleDocumentPointerDown(event) {
     if (this.state.menuOpen && this.menuContainer && !this.menuContainer.contains(event.target)) {
       this.setState({ menuOpen: false });
+    }
+  }
+
+  handleNetworkOffline() {
+    this.setState({ networkOnline: false });
+    if (this.state.navigationActive) {
+      this.playVoiceClip('internet_lost').catch(() => {});
+    }
+  }
+
+  handleNetworkOnline() {
+    const wasOffline = !this.state.networkOnline;
+    this.setState({ networkOnline: true });
+    if (wasOffline && this.state.navigationActive) {
+      this.playVoiceClip('internet_restored').catch(() => {});
     }
   }
 
@@ -949,11 +979,19 @@ class App extends React.Component {
 
   handlePositionUpdate(position) {
     const userCoordinates = readPosition(position);
+    const gpsSignal = userCoordinates.accuracy > 80 ? 'weak' : 'good';
+    const previousGpsSignal = this.state.gpsSignal;
     this.setState({
       locationStatus: 'ready',
       locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
+      gpsSignal,
       userCoordinates
     }, () => {
+      if (this.state.navigationActive && previousGpsSignal === 'lost') {
+        this.playVoiceClip('gps_restored').catch(() => {});
+      } else if (this.state.navigationActive && gpsSignal === 'weak' && previousGpsSignal === 'good') {
+        this.playVoiceClip('gps_weak').catch(() => {});
+      }
       if (this.state.navigationActive && !this.state.navigationPaused) {
         this.updateNavigationProgress(userCoordinates);
       }
@@ -962,12 +1000,17 @@ class App extends React.Component {
 
   handlePositionError(error) {
     const permissionDenied = error && error.code === 1;
+    const gpsWasAvailable = this.state.gpsSignal !== 'lost';
     this.setState({
       locationStatus: 'error',
+      gpsSignal: 'lost',
       locationMessage: permissionDenied
         ? 'Nie przyznano dostępu do lokalizacji.'
         : 'Utracono sygnał GPS. Próbuję ponownie.'
     });
+    if (gpsWasAvailable && this.state.navigationActive) {
+      this.playVoiceClip('gps_lost').catch(() => {});
+    }
   }
 
   startLocationWatch() {
@@ -1891,6 +1934,8 @@ class App extends React.Component {
       stepIndex,
       tripComplete,
       locationStatus,
+      gpsSignal,
+      networkOnline,
       userCoordinates,
       route,
       routeManeuvers,
@@ -1907,6 +1952,16 @@ class App extends React.Component {
       ? { ...baseManeuver, distance: formatDistance(distanceToManeuver) }
       : baseManeuver;
     const navigationMode = navigationActive || tripComplete;
+    const navigationNotice = !networkOnline
+      ? {
+        icon: 'route',
+        text: 'Brak internetu — nowa trasa będzie dostępna po odzyskaniu połączenia.'
+      }
+      : gpsSignal === 'lost'
+        ? { icon: 'location', text: 'Brak sygnału GPS — próbuję odzyskać pozycję.' }
+        : gpsSignal === 'weak'
+          ? { icon: 'location', text: 'Słaby sygnał GPS — pozycja może być niedokładna.' }
+          : null;
 
     return h('main', { className: `app-shell${navigationMode ? ' is-navigating' : ''}` },
       h('aside', { className: 'sidebar' },
@@ -1942,6 +1997,7 @@ class App extends React.Component {
           currentManeuver,
           tripComplete,
           locationStatus,
+          navigationNotice: navigationActive ? navigationNotice : null,
           userCoordinates,
           route,
           mapZoom,
