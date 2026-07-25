@@ -294,6 +294,33 @@ function getDistanceVoiceId(meters) {
 
 const VOICE_DATABASE_NAME = 'mojamapa-voice';
 const VOICE_STORE_NAME = 'clips';
+const PLACE_HISTORY_KEY = 'mojamapa-place-history-v1';
+
+function readPlaceHistory() {
+  try {
+    const places = JSON.parse(window.localStorage.getItem(PLACE_HISTORY_KEY) || '[]');
+    return Array.isArray(places)
+      ? places.filter((place) => (
+        place
+        && typeof place.id === 'string'
+        && typeof place.name === 'string'
+        && Array.isArray(place.coordinates)
+        && place.coordinates.length === 2
+        && place.coordinates.every(Number.isFinite)
+      )).slice(0, 8)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePlaceHistory(places) {
+  try {
+    window.localStorage.setItem(PLACE_HISTORY_KEY, JSON.stringify(places));
+  } catch {
+    // Browsing in private mode can disable storage; navigation still works without history.
+  }
+}
 
 function openVoiceDatabase() {
   return new Promise((resolve, reject) => {
@@ -707,7 +734,7 @@ class App extends React.Component {
       routeMessage: '',
       travelMode: 'car',
       avoidedFeatures: ['tollways', 'ferries'],
-      recentDestinationIds: ['museum', 'park'],
+      recentDestinations: readPlaceHistory(),
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
@@ -873,11 +900,14 @@ class App extends React.Component {
       selectedRouteIndex: 0,
       routeStatus: 'loading',
       routeMessage: '',
-      recentDestinationIds: [
-        destination.id,
-        ...state.recentDestinationIds.filter((id) => id !== destination.id)
-      ].slice(0, 3)
-    }), this.calculateRoute);
+      recentDestinations: [
+        destination,
+        ...state.recentDestinations.filter((place) => place.id !== destination.id)
+      ].slice(0, 8)
+    }), () => {
+      writePlaceHistory(this.state.recentDestinations);
+      this.calculateRoute();
+    });
   }
 
   async calculateRoute(startCoordinates = null) {
@@ -1697,7 +1727,10 @@ class App extends React.Component {
           h('h2', null, 'Ostatnie miejsca'),
           h('button', {
             type: 'button',
-            onClick: () => this.setState({ recentDestinationIds: [] })
+            onClick: () => {
+              writePlaceHistory([]);
+              this.setState({ recentDestinations: [] });
+            }
           }, 'Wyczyść')
         ),
         recentDestinations.length > 0
@@ -2064,7 +2097,7 @@ class App extends React.Component {
     const {
       destination,
       query,
-      recentDestinationIds,
+      recentDestinations,
       searchOpen,
       navigationActive,
       stepIndex,
@@ -2079,9 +2112,6 @@ class App extends React.Component {
       mapZoom,
       menuOpen
     } = this.state;
-    const recentDestinations = recentDestinationIds
-      .map((id) => DESTINATIONS.find((item) => item.id === id))
-      .filter(Boolean);
     const maneuvers = routeManeuvers || MANEUVERS[destination.id] || MANEUVERS.park;
     const baseManeuver = maneuvers[Math.min(stepIndex, maneuvers.length - 1)];
     const currentManeuver = navigationActive && distanceToManeuver !== null
