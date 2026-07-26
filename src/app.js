@@ -1528,6 +1528,25 @@ class App extends React.Component {
     this.setState({ clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle' });
   }
 
+  addMapLocationAsWaypoint() {
+    const { clickedLocation, clickedLocationName } = this.state;
+    if (!clickedLocation) return;
+    const waypoint = {
+      id: `wp-map-${clickedLocation.join('-')}`,
+      name: clickedLocationName,
+      address: `${clickedLocation[1].toFixed(5)}, ${clickedLocation[0].toFixed(5)}`,
+      coordinates: clickedLocation
+    };
+    this.setState((prev) => ({
+      clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle',
+      waypoints: [...prev.waypoints, waypoint]
+    }), () => {
+      if (this.state.routeStatus === 'ready') {
+        this.calculateRoute();
+      }
+    });
+  }
+
   selectPoiDestination(poi) {
     const destination = {
       id: `poi-${poi.id}`,
@@ -2204,7 +2223,7 @@ class App extends React.Component {
             ? h('p', { className: 'poi-status is-error' }, this.state.poiMessage || 'Nie udało się pobrać miejsc.')
             : this.state.poiResults.length > 0
               ? h('div', { className: 'poi-results' },
-                this.state.poiResults.slice(0, 10).map((poi) => h('button', {
+                  this.state.poiResults.slice(0, 10).map((poi) => h('button', {
                   className: 'place-card',
                   key: poi.id,
                   type: 'button',
@@ -2215,6 +2234,15 @@ class App extends React.Component {
                   h('strong', null, poi.name),
                   h('small', null, poi.address || 'Warszawa')
                 ),
+                h('button', {
+                  className: 'card-waypoint-btn',
+                  type: 'button',
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    this.addWaypoint(poi);
+                  },
+                  'aria-label': `Dodaj ${poi.name} jako przystanek`
+                }, h(Icon, { name: 'stop', size: 14 })),
                 h(Icon, { name: 'arrow', size: 18 })
                 ))
               )
@@ -2469,6 +2497,16 @@ class App extends React.Component {
           },
             h('span', null, 'Jedź tutaj'),
             h(Icon, { name: 'arrow', size: 17 })
+          ),
+          h('button', {
+            className: 'secondary-control has-text',
+            type: 'button',
+            onClick: () => this.addMapLocationAsWaypoint(),
+            disabled: this.state.clickedLocationStatus === 'loading',
+            'aria-label': 'Dodaj jako przystanek'
+          },
+            h(Icon, { name: 'stop', size: 16 }),
+            h('span', null, 'Przystanek')
           ),
           h('button', {
             className: 'secondary-control danger-control',

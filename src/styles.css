@@ -1697,6 +1697,13 @@ input:focus-visible {
   background: #eef0ef;
 }
 
+.secondary-control.has-text {
+  width: auto;
+  gap: 5px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
 .next-control {
   gap: 8px;
   padding: 0 15px;
