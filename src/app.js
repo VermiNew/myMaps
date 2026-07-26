@@ -1056,6 +1056,7 @@ class App extends React.Component {
     this.toggleRoutePreference = this.toggleRoutePreference.bind(this);
     this.toggleMapStyle = this.toggleMapStyle.bind(this);
     this.toggleMapDim = this.toggleMapDim.bind(this);
+    this.handleMapClick = this.handleMapClick.bind(this);
   }
 
   componentDidMount() {
@@ -1378,7 +1379,7 @@ class App extends React.Component {
       gpsSignal,
       userCoordinates
     }, () => {
-      if (wasLocationUnknown && !this.state.startLocation && this.state.destination && this.state.routeStatus === 'ready') {
+      if (wasLocationUnknown && !this.state.startLocation && this.state.destination) {
         this.calculateRoute(userCoordinates);
       }
       if (this.state.navigationActive && previousGpsSignal === 'lost') {
@@ -1408,7 +1409,14 @@ class App extends React.Component {
   }
 
   startLocationWatch() {
-    if (!navigator.geolocation || this.locationWatchId !== null) {
+    if (this.locationWatchId !== null) {
+      return;
+    }
+    if (!navigator.geolocation) {
+      this.setState({
+        locationStatus: 'error',
+        locationMessage: 'Ta przeglądarka nie udostępnia lokalizacji.'
+      });
       return;
     }
     this.locationWatchId = navigator.geolocation.watchPosition(
