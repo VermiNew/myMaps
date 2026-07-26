@@ -128,6 +128,10 @@ function readCoordinates(value) {
 async function handleRouting(requestUrl, response) {
   const start = readCoordinates(requestUrl.searchParams.get('start'));
   const end = readCoordinates(requestUrl.searchParams.get('end'));
+  const rawWaypoints = requestUrl.searchParams.get('waypoints');
+  const waypoints = rawWaypoints
+    ? rawWaypoints.split('|').map((w) => readCoordinates(w)).filter(Boolean)
+    : [];
   const mode = requestUrl.searchParams.get('mode') || 'car';
   const profile = routeProfiles[mode];
   const includeAlternatives = mode === 'car' && requestUrl.searchParams.get('alternatives') === 'true';
@@ -147,6 +151,8 @@ async function handleRouting(requestUrl, response) {
     return;
   }
 
+  const coordinates = [start, ...waypoints, end];
+
   try {
     const upstreamResponse = await fetch(
       `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
@@ -158,7 +164,7 @@ async function handleRouting(requestUrl, response) {
           'User-Agent': 'MojaMapa/1.0'
         },
         body: JSON.stringify({
-          coordinates: [start, end],
+          coordinates,
           instructions: true,
           language: 'pl',
           ...(avoidFeatures.length > 0 ? {

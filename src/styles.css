@@ -433,6 +433,36 @@ h1 {
   background: #f0f2f1;
 }
 
+.search-result-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.search-result-row .search-result {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-result-waypoint {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 4px;
+  color: #7a838d;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.search-result-waypoint:hover {
+  color: var(--blue);
+  background: rgba(45, 108, 246, 0.1);
+}
+
 .search-result .place-icon {
   width: 34px;
   height: 34px;
@@ -1824,4 +1854,86 @@ input:focus-visible {
 
 .map-click-confirm > div:first-child {
   max-width: 300px;
+}
+
+.waypoint-list {
+  margin: -6px 0 14px;
+}
+
+.waypoint-list-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c858f;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.waypoint-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  background: #f0f2ef;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.waypoint-row + .waypoint-row {
+  margin-top: 4px;
+}
+
+.waypoint-index {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #ffffff;
+  background: var(--blue);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.waypoint-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waypoint-remove {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #8a929c;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.waypoint-remove:hover {
+  color: #a04742;
+  background: #f0e4e2;
+}
+
+.waypoint-marker {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: #ffffff;
+  background: var(--blue);
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(23, 34, 52, 0.25);
+  font-size: 11px;
+  font-weight: 800;
 }

@@ -480,6 +480,7 @@ function Icon({ name, size = 20 }) {
     layers: h('g', null,
       h('path', { d: 'M2 12l10-8 10 8M2 17l10-8 10 8M2 22l10-8 10 8' })
     ),
+    plus: h('path', { d: 'M12 5v14M5 12h14' }),
     star: h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }),
     trash: h('g', null,
       h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
@@ -514,6 +515,7 @@ class MapCanvas extends React.Component {
     this.destinationMarker = null;
     this.poiMarkers = [];
     this.clickMarker = null;
+    this.waypointMarkers = [];
     this.state = { mapError: false, bearing: 0, pitch: 0 };
     this.fitMap = this.fitMap.bind(this);
     this.resetNorth = this.resetNorth.bind(this);
@@ -592,6 +594,9 @@ class MapCanvas extends React.Component {
     if (previousProps.poiResults !== this.props.poiResults) {
       this.updatePoiMarkers();
     }
+    if (previousProps.waypoints !== this.props.waypoints) {
+      this.updateWaypointMarkers();
+    }
     if (previousProps.clickedLocation !== this.props.clickedLocation) {
       this.updateClickMarker();
     }
@@ -615,6 +620,7 @@ class MapCanvas extends React.Component {
     this.destinationMarker?.remove();
     this.removePoiMarkers();
     this.clickMarker?.remove();
+    this.removeWaypointMarkers();
     this.map?.remove();
   }
 
@@ -715,6 +721,29 @@ class MapCanvas extends React.Component {
     this.clickMarker = new window.maplibregl.Marker({ element })
       .setLngLat(location)
       .addTo(this.map);
+  }
+
+  removeWaypointMarkers() {
+    this.waypointMarkers.forEach((m) => m.remove());
+    this.waypointMarkers = [];
+  }
+
+  updateWaypointMarkers() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    this.removeWaypointMarkers();
+    (this.props.waypoints || []).forEach((wp, index) => {
+      const element = document.createElement('div');
+      element.className = 'waypoint-marker';
+      element.textContent = `${index + 1}`;
+      element.setAttribute('aria-label', `Przystanek ${index + 1}: ${wp.name}`);
+      element.setAttribute('role', 'img');
+      const marker = new window.maplibregl.Marker({ element })
+        .setLngLat(wp.coordinates)
+        .addTo(this.map);
+      this.waypointMarkers.push(marker);
+    });
   }
 
   followUser() {
@@ -914,6 +943,7 @@ class App extends React.Component {
       avoidedFeatures: ['tollways', 'ferries'],
       recentDestinations: readStoredPlaces(PLACE_HISTORY_KEY),
       favoritePlaces: readStoredPlaces(FAVORITE_PLACES_KEY),
+      waypoints: [],
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
@@ -1123,6 +1153,27 @@ class App extends React.Component {
     });
   }
 
+  addWaypoint(place) {
+    const waypoint = { id: `wp-${place.id || place.coordinates.join('-')}`, name: place.name, coordinates: place.coordinates };
+    this.setState((state) => ({
+      waypoints: [...state.waypoints, waypoint]
+    }), () => {
+      if (this.state.routeStatus === 'ready') {
+        this.calculateRoute();
+      }
+    });
+  }
+
+  removeWaypoint(waypointId) {
+    this.setState((state) => ({
+      waypoints: state.waypoints.filter((w) => w.id !== waypointId)
+    }), () => {
+      if (this.state.routeStatus === 'ready') {
+        this.calculateRoute();
+      }
+    });
+  }
+
   async calculateRoute(startCoordinates = null) {
     if (!navigator.onLine) {
       this.setState({
@@ -1143,6 +1194,9 @@ class App extends React.Component {
       end: end.join(','),
       mode: this.state.travelMode
     });
+    if (this.state.waypoints.length > 0) {
+      routeParameters.set('waypoints', this.state.waypoints.map((w) => w.coordinates.join(',')).join('|'));
+    }
     if (this.state.avoidedFeatures.length > 0) {
       routeParameters.set('avoid', this.state.avoidedFeatures.join(','));
     }
@@ -1981,6 +2035,21 @@ class App extends React.Component {
               })
           )
         ),
+        this.state.waypoints.length > 0
+          ? h('div', { className: 'waypoint-list' },
+            h('span', { className: 'waypoint-list-label' }, 'Przystanki'),
+            this.state.waypoints.map((wp, index) => h('div', { className: 'waypoint-row', key: wp.id },
+              h('span', { className: 'waypoint-index' }, `${index + 1}`),
+              h('span', { className: 'waypoint-name' }, wp.name),
+              h('button', {
+                className: 'waypoint-remove',
+                type: 'button',
+                onClick: () => this.removeWaypoint(wp.id),
+                'aria-label': `Usuń przystanek: ${wp.name}`
+              }, h(Icon, { name: 'close', size: 14 }))
+            ))
+          )
+          : null,
         h('div', { className: 'search-area' },
           h('label', { className: 'search-box' },
             h(Icon, { name: 'search', size: 21 }),
@@ -2499,9 +2568,12 @@ class App extends React.Component {
         : this.state.searchStatus === 'error'
           ? h('p', { className: 'empty-results is-error', role: 'status' }, this.state.searchMessage)
           : matches.length > 0
-        ? matches.map((destination) => h('button', {
+        ? matches.map((destination) => h('div', {
+          className: 'search-result-row',
+          key: destination.id
+        },
+        h('button', {
           className: 'search-result',
-          key: destination.id,
           type: 'button',
           role: 'option',
           onMouseDown: (event) => event.preventDefault(),
@@ -2513,6 +2585,16 @@ class App extends React.Component {
           h('small', null, `${destination.address} · ${destination.district}`)
         ),
         h('span', { className: 'result-time' }, destination.isSearchResult ? 'Wybierz' : destination.time)
+        ),
+        h('button', {
+          className: 'search-result-waypoint',
+          type: 'button',
+          onClick: (event) => {
+            event.preventDefault();
+            this.addWaypoint(destination);
+          },
+          'aria-label': `Dodaj jako przystanek: ${destination.name}`
+        }, h(Icon, { name: 'plus', size: 14 }))
         ))
             : h('p', { className: 'empty-results' }, this.state.searchMessage || 'Nie znaleźliśmy takiego miejsca.')
     );
@@ -2599,7 +2681,8 @@ class App extends React.Component {
           onMapStyleChange: this.toggleMapStyle,
           onPoiSelect: (poi) => this.selectPoiDestination(poi),
           onMapClick: this.handleMapClick,
-          clickedLocation: this.state.clickedLocation
+          clickedLocation: this.state.clickedLocation,
+          waypoints: this.state.waypoints
         }),
         this.renderMapFooter(destination, maneuvers)
       ),
