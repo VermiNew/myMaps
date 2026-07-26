@@ -480,6 +480,7 @@ function Icon({ name, size = 20 }) {
     layers: h('g', null,
       h('path', { d: 'M2 12l10-8 10 8M2 17l10-8 10 8M2 22l10-8 10 8' })
     ),
+    moon: h('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z' }),
     plus: h('path', { d: 'M12 5v14M5 12h14' }),
     star: h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }),
     trash: h('g', null,
@@ -824,9 +825,11 @@ class MapCanvas extends React.Component {
       navigationNotice,
       mapZoom,
       mapStyle,
+      mapDimmed,
       onZoomIn,
       onZoomOut,
-      onMapStyleChange
+      onMapStyleChange,
+      onMapDimToggle
     } = this.props;
 
     return h('div', { className: 'map-canvas', 'aria-label': 'Interaktywna mapa Warszawy' },
@@ -834,6 +837,7 @@ class MapCanvas extends React.Component {
         className: 'map-surface',
         ref: (element) => { this.mapContainer = element; }
       }),
+      mapDimmed ? h('div', { className: 'map-dim-overlay', 'aria-hidden': 'true' }) : null,
       this.state.mapError
         ? h('div', { className: 'map-error', role: 'status' },
           h('strong', null, 'Mapa jest chwilowo niedostępna'),
@@ -859,6 +863,12 @@ class MapCanvas extends React.Component {
         )
         : null,
         h('div', { className: 'map-toolbar' },
+        h('button', {
+          className: `map-tool${mapDimmed ? ' is-active' : ''}`,
+          type: 'button',
+          onClick: onMapDimToggle,
+          'aria-label': mapDimmed ? 'Wyłącz przyciemnienie' : 'Przyciemnij mapę'
+        }, h(Icon, { name: 'moon' })),
         h('button', {
           className: `map-tool${mapStyle !== 'streets' ? ' is-active' : ''}`,
           type: 'button',
@@ -968,6 +978,7 @@ class App extends React.Component {
       poiResults: [],
       poiStatus: 'idle',
       poiMessage: '',
+      mapDimmed: false,
       clickedLocation: null,
       clickedLocationName: '',
       clickedLocationStatus: 'idle'
@@ -1567,6 +1578,10 @@ class App extends React.Component {
       const nextIndex = (currentIndex + 1) % MAP_STYLE_LIST.length;
       return { mapStyle: MAP_STYLE_LIST[nextIndex] };
     });
+  }
+
+  toggleMapDim() {
+    this.setState((state) => ({ mapDimmed: !state.mapDimmed }));
   }
 
   async loadVoiceClips() {
@@ -2727,6 +2742,8 @@ class App extends React.Component {
           onZoomOut: () => this.adjustMapZoom(-0.15),
           onResetMap: this.resetMapView,
           onMapStyleChange: this.toggleMapStyle,
+          onMapDimToggle: this.toggleMapDim,
+          mapDimmed: this.state.mapDimmed,
           onPoiSelect: (poi) => this.selectPoiDestination(poi),
           onMapClick: this.handleMapClick,
           clickedLocation: this.state.clickedLocation,
