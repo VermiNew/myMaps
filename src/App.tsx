@@ -1,10 +1,8 @@
-'use strict';
+import React from 'react';
+import Icon from './components/Icon';
 
-const React = window.React;
-const ReactDOM = window.ReactDOM;
-const h = React.createElement;
 const MAP_STYLE_LIST = ['streets', 'satellite', 'dark'];
-const MAP_STYLES = {
+const MAP_STYLES: Record<string, any> = {
   streets: 'https://tiles.openfreemap.org/styles/positron',
   satellite: {
     version: 8,
@@ -26,7 +24,7 @@ const MAP_STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 };
 const DEFAULT_MAP_STYLE = 'streets';
-const DEFAULT_ORIGIN = [21.0374, 52.2518];
+const DEFAULT_ORIGIN: [number, number] = [21.0374, 52.2518];
 const TRAVEL_MODES = [
   { id: 'car', label: 'Samochód' },
   { id: 'bicycle', label: 'Rower' },
@@ -38,23 +36,23 @@ const ROUTE_PREFERENCES = [
   { id: 'ferries', label: 'Promy', carOnly: false }
 ];
 
-function formatDuration(seconds) {
+function formatDuration(seconds: number) {
   const minutes = Math.max(1, Math.round(seconds / 60));
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} godz. ${minutes % 60} min`;
 }
 
-function formatDistance(meters) {
+function formatDistance(meters: number) {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
 }
 
-function formatArrivalTime(seconds) {
+function formatArrivalTime(seconds: number) {
   return new Date(Date.now() + (seconds * 1000)).toLocaleTimeString('pl-PL', {
     hour: '2-digit',
     minute: '2-digit'
   });
 }
 
-const SASSY_PHRASES = {
+const SASSY_PHRASES: Record<string, string[]> = {
   straight: ['Prosto, jak beret.', 'Prosto, przed siebie, nie śpij.', 'Prosto. Tak długo, aż coś się zmieni.'],
   left: ['W lewo, a gdzie by indziej.', 'Lewo, ale bez pośpiechu.', 'Skręć w lewo, jeśli potrafisz.'],
   right: ['W prawo, z sensem.', 'Prawa strona. No, ruszaj!', 'W prawo albo i nie — jak chcesz.'],
@@ -69,17 +67,17 @@ const SASSY_PHRASES = {
   default: ['Panie, a gdzie to Pan jedzie? Patrz Pan na drogę!', 'No jedź, tak jak pokazuje.', 'Kieruj się dalej, a będzie dobrze.']
 };
 
-function pickRandomPhrase(phrases) {
+function pickRandomPhrase(phrases: string[]) {
   return phrases[Math.floor(Math.random() * phrases.length)];
 }
 
-function getSassyInstruction(maneuver, sassyMode) {
+function getSassyInstruction(maneuver: any, sassyMode: boolean) {
   if (!sassyMode) return maneuver.instruction;
   const list = SASSY_PHRASES[maneuver.type] || SASSY_PHRASES.default;
   return pickRandomPhrase(list);
 }
 
-function classifyManeuver(step, isLast) {
+function classifyManeuver(step: any, isLast: boolean) {
   if (isLast || step.type === 10) return { type: 'arrive', voiceId: 'arrive' };
   const roundaboutExits = [
     'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
@@ -91,7 +89,7 @@ function classifyManeuver(step, isLast) {
       voiceId: `roundabout_exit_${roundaboutExits[step.exit_number - 1]}`
     };
   }
-  const maneuverTypes = {
+  const maneuverTypes: Record<number, { type: string; voiceId: string }> = {
     0: { type: 'left', voiceId: 'left' },
     1: { type: 'right', voiceId: 'right' },
     2: { type: 'left', voiceId: 'turn_sharp_left' },
@@ -115,7 +113,7 @@ function classifyManeuver(step, isLast) {
   return { type: 'straight', voiceId: 'straight' };
 }
 
-function readPosition(position) {
+function readPosition(position: GeolocationPosition) {
   return {
     latitude: position.coords.latitude,
     longitude: position.coords.longitude,
@@ -126,8 +124,8 @@ function readPosition(position) {
   };
 }
 
-function distanceBetween(first, second) {
-  const toRadians = (value) => value * (Math.PI / 180);
+function distanceBetween(first: [number, number], second: [number, number]) {
+  const toRadians = (value: number) => value * (Math.PI / 180);
   const latitudeDelta = toRadians(second[1] - first[1]);
   const longitudeDelta = toRadians(second[0] - first[0]);
   const firstLatitude = toRadians(first[1]);
@@ -138,12 +136,12 @@ function distanceBetween(first, second) {
   return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
-function findClosestRoutePoint(userCoordinates, routeCoordinates) {
+function findClosestRoutePoint(userCoordinates: any, routeCoordinates: [number, number][]) {
   if (!userCoordinates || routeCoordinates.length < 2) {
     return null;
   }
-  const point = [userCoordinates.longitude, userCoordinates.latitude];
-  let closest = null;
+  const point: [number, number] = [userCoordinates.longitude, userCoordinates.latitude];
+  let closest: any = null;
 
   for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
     const start = routeCoordinates[index];
@@ -159,7 +157,7 @@ function findClosestRoutePoint(userCoordinates, routeCoordinates) {
     const fraction = segmentLengthSquared === 0
       ? 0
       : Math.max(0, Math.min(1, ((pointX * segmentX) + (pointY * segmentY)) / segmentLengthSquared));
-    const coordinate = [
+    const coordinate: [number, number] = [
       start[0] + ((end[0] - start[0]) * fraction),
       start[1] + ((end[1] - start[1]) * fraction)
     ];
@@ -172,7 +170,7 @@ function findClosestRoutePoint(userCoordinates, routeCoordinates) {
   return closest;
 }
 
-function measureRouteFromPoint(routeCoordinates, routePoint, endIndex) {
+function measureRouteFromPoint(routeCoordinates: [number, number][], routePoint: any, endIndex: number) {
   if (!routePoint || routeCoordinates.length < 2 || endIndex <= routePoint.segmentIndex) {
     return 0;
   }
@@ -187,10 +185,10 @@ function measureRouteFromPoint(routeCoordinates, routePoint, endIndex) {
   return distance;
 }
 
-function createRouteOption(route) {
+function createRouteOption(route: any) {
   const summary = route.properties.summary;
   const steps = route.properties.segments?.[0]?.steps || [];
-  const routeManeuvers = steps.map((step, index) => {
+  const routeManeuvers = steps.map((step: any, index: number) => {
     const maneuver = classifyManeuver(step, index === steps.length - 1);
     return {
       ...maneuver,
@@ -222,7 +220,7 @@ const DESTINATIONS = [
     name: 'Muzeum Narodowe',
     address: 'Aleje Jerozolimskie 3, Warszawa',
     district: 'Śródmieście',
-    coordinates: [21.0245, 52.2317],
+    coordinates: [21.0245, 52.2317] as [number, number],
     time: '18 min',
     distance: '5,7 km',
     routePath: 'M175 625C310 540 338 438 500 420s265 78 390-14 110-180 205-235',
@@ -234,7 +232,7 @@ const DESTINATIONS = [
     name: 'Park Skaryszewski',
     address: 'Aleja Zieleniecka, Warszawa',
     district: 'Praga-Południe',
-    coordinates: [21.0647, 52.2442],
+    coordinates: [21.0647, 52.2442] as [number, number],
     time: '24 min',
     distance: '8,4 km',
     routePath: 'M175 625C305 570 410 600 510 545s172-130 290-70 190 160 320 135',
@@ -246,7 +244,7 @@ const DESTINATIONS = [
     name: 'Biblioteka Uniwersytecka',
     address: 'Dobra 56/66, Warszawa',
     district: 'Powiśle',
-    coordinates: [21.0248, 52.2429],
+    coordinates: [21.0248, 52.2429] as [number, number],
     time: '15 min',
     distance: '4,3 km',
     routePath: 'M175 625C295 535 355 420 490 410s195 15 285-75 120-155 210-185',
@@ -258,7 +256,7 @@ const DESTINATIONS = [
     name: 'Warszawa Centralna',
     address: 'Aleje Jerozolimskie 54, Warszawa',
     district: 'Śródmieście',
-    coordinates: [21.0039, 52.2285],
+    coordinates: [21.0039, 52.2285] as [number, number],
     time: '12 min',
     distance: '3,6 km',
     routePath: 'M175 625C280 555 315 470 430 445s200 25 305-45 125-110 205-95',
@@ -267,7 +265,7 @@ const DESTINATIONS = [
   }
 ];
 
-const MANEUVERS = {
+const MANEUVERS: Record<string, any[]> = {
   museum: [
     { type: 'straight', distance: '300 m', instruction: 'Jedź prosto ulicą Targową' },
     { type: 'right', distance: '1,2 km', instruction: 'Skręć w prawo w aleję Solidarności' },
@@ -309,11 +307,11 @@ const VOICE_PHRASES = [
   { id: 'arrive', label: 'Jesteś na miejscu', description: 'Odtwarzane po dotarciu do celu' }
 ];
 
-function getDefaultVoiceUrl(phraseId) {
+function getDefaultVoiceUrl(phraseId: string) {
   return `./audio/default-voice/${phraseId}.mp3`;
 }
 
-const DISTANCE_VOICE_PROMPTS = [
+const DISTANCE_VOICE_PROMPTS: [number, string][] = [
   [10, 'in_10_m'],
   [20, 'in_20_m'],
   [30, 'in_30_m'],
@@ -341,8 +339,8 @@ const DISTANCE_VOICE_PROMPTS = [
   [10000, 'in_10_km']
 ];
 
-function getDistanceVoiceId(meters) {
-  if (!Number.isFinite(meters) || meters < 15) {
+function getDistanceVoiceId(meters: number | null) {
+  if (meters === null || !Number.isFinite(meters) || meters < 15) {
     return null;
   }
   return DISTANCE_VOICE_PROMPTS.reduce((closest, prompt) => (
@@ -355,11 +353,11 @@ const VOICE_STORE_NAME = 'clips';
 const PLACE_HISTORY_KEY = 'mojamapa-place-history-v1';
 const FAVORITE_PLACES_KEY = 'mojamapa-favorite-places-v1';
 
-function readStoredPlaces(storageKey) {
+function readStoredPlaces(storageKey: string) {
   try {
     const places = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
     return Array.isArray(places)
-      ? places.filter((place) => (
+      ? places.filter((place: any) => (
         place
         && typeof place.id === 'string'
         && typeof place.name === 'string'
@@ -373,7 +371,7 @@ function readStoredPlaces(storageKey) {
   }
 }
 
-function writeStoredPlaces(storageKey, places) {
+function writeStoredPlaces(storageKey: string, places: any[]) {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify(places));
   } catch {
@@ -381,7 +379,7 @@ function writeStoredPlaces(storageKey, places) {
   }
 }
 
-function readSharedRoute() {
+function readSharedRoute(): any {
   const parameters = new URLSearchParams(window.location.search);
   const coordinates = parameters.get('to')?.split(',').map(Number);
   if (coordinates?.length !== 2 || !coordinates.every(Number.isFinite)) {
@@ -393,7 +391,7 @@ function readSharedRoute() {
   const allowedFeatures = new Set(ROUTE_PREFERENCES.map((preference) => preference.id));
   const avoidedFeatures = (parameters.get('avoid') || '')
     .split(',')
-    .filter((feature) => allowedFeatures.has(feature));
+    .filter((feature: string) => allowedFeatures.has(feature));
   const name = parameters.get('name') || 'Udostępniony cel';
   return {
     destination: {
@@ -411,7 +409,7 @@ function readSharedRoute() {
   };
 }
 
-function openVoiceDatabase() {
+function openVoiceDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) {
       reject(new Error('IndexedDB is not available.'));
@@ -430,7 +428,7 @@ function openVoiceDatabase() {
   });
 }
 
-async function readStoredVoiceClips() {
+async function readStoredVoiceClips(): Promise<any[]> {
   const database = await openVoiceDatabase();
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(VOICE_STORE_NAME, 'readonly');
@@ -441,9 +439,9 @@ async function readStoredVoiceClips() {
   });
 }
 
-async function persistVoiceClip(id, blob) {
+async function persistVoiceClip(id: string, blob: Blob) {
   const database = await openVoiceDatabase();
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(VOICE_STORE_NAME, 'readwrite');
     transaction.objectStore(VOICE_STORE_NAME).put({ id, blob, updatedAt: Date.now() });
     transaction.oncomplete = () => {
@@ -454,9 +452,9 @@ async function persistVoiceClip(id, blob) {
   });
 }
 
-async function removeVoiceClip(id) {
+async function removeVoiceClip(id: string) {
   const database = await openVoiceDatabase();
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(VOICE_STORE_NAME, 'readwrite');
     transaction.objectStore(VOICE_STORE_NAME).delete(id);
     transaction.oncomplete = () => {
@@ -467,86 +465,50 @@ async function removeVoiceClip(id) {
   });
 }
 
-function Icon({ name, size = 20 }) {
-  const icons = {
-    arrow: h('path', { d: 'M5 12h14M13 6l6 6-6 6' }),
-    arrive: h('g', null,
-      h('path', { d: 'M6 21V5' }),
-      h('path', { d: 'M6 6h10l-2 4 2 4H6' })
-    ),
-    compass: h('g', null,
-      h('circle', { cx: 12, cy: 12, r: 9 }),
-      h('path', { d: 'm15.4 8.6-2.2 4.6-4.6 2.2 2.2-4.6 4.6-2.2Z' })
-    ),
-    close: h('path', { d: 'M6 6l12 12M18 6 6 18' }),
-    location: h('g', null,
-      h('path', { d: 'M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z' }),
-      h('circle', { cx: 12, cy: 10, r: 2.4 })
-    ),
-    menu: h('path', { d: 'M4 7h16M4 12h16M4 17h16' }),
-    mic: h('g', null,
-      h('rect', { x: 9, y: 3, width: 6, height: 11, rx: 3 }),
-      h('path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6' })
-    ),
-    route: h('path', { d: 'M6 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm12-8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8.5 15.5c4.5 0 1-7 6.5-7' }),
-    left: h('path', { d: 'M19 19v-3a6 6 0 0 0-6-6H5m5-5-5 5 5 5' }),
-    pause: h('g', null,
-      h('path', { d: 'M9 5v14' }),
-      h('path', { d: 'M15 5v14' })
-    ),
-    play: h('path', { d: 'm8 5 11 7-11 7Z' }),
-    right: h('path', { d: 'M5 19v-3a6 6 0 0 1 6-6h8m-5-5 5 5-5 5' }),
-    search: h('g', null,
-      h('circle', { cx: 11, cy: 11, r: 7 }),
-      h('path', { d: 'm20 20-4-4' })
-    ),
-    stop: h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 }),
-    straight: h('path', { d: 'M12 20V5m-5 5 5-5 5 5' }),
-    layers: h('g', null,
-      h('path', { d: 'M2 12l10-8 10 8M2 17l10-8 10 8M2 22l10-8 10 8' })
-    ),
-    moon: h('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z' }),
-    plus: h('path', { d: 'M12 5v14M5 12h14' }),
-    star: h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }),
-    gear: h('g', null,
-      h('path', { d: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z' }),
-      h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z' })
-    ),
-    trash: h('g', null,
-      h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
-      h('path', { d: 'M10 11v5M14 11v5' })
-    ),
-    volume: h('g', null,
-      h('path', { d: 'M5 10v4h4l5 4V6L9 10H5Z' }),
-      h('path', { d: 'M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12' })
-    )
-  };
-
-  return h('svg', {
-    className: 'icon',
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.8,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    'aria-hidden': true
-  }, icons[name]);
+interface MapCanvasProps {
+  destination: any;
+  navigationActive: boolean;
+  currentManeuver: any;
+  tripComplete: boolean;
+  locationStatus: string;
+  navigationNotice: any;
+  userCoordinates: any;
+  route: any;
+  mapZoom: number;
+  mapStyle: string;
+  poiResults: any[];
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetMap: () => void;
+  onMapStyleChange: () => void;
+  onMapDimToggle: () => void;
+  mapDimmed: boolean;
+  onPoiSelect: (poi: any) => void;
+  onMapClick: (coords: [number, number]) => void;
+  clickedLocation: any;
+  startLocation: any;
+  waypoints: any[];
 }
 
-class MapCanvas extends React.Component {
-  constructor(props) {
+interface MapCanvasState {
+  mapError: boolean;
+  bearing: number;
+  pitch: number;
+  sassyMode?: boolean;
+}
+
+class MapCanvas extends React.Component<MapCanvasProps, MapCanvasState> {
+  mapContainer: HTMLDivElement | null = null;
+  map: any = null;
+  originMarker: any = null;
+  destinationMarker: any = null;
+  startMarker: any = null;
+  poiMarkers: any[] = [];
+  clickMarker: any = null;
+  waypointMarkers: any[] = [];
+
+  constructor(props: MapCanvasProps) {
     super(props);
-    this.mapContainer = null;
-    this.map = null;
-    this.originMarker = null;
-    this.destinationMarker = null;
-    this.startMarker = null;
-    this.poiMarkers = [];
-    this.clickMarker = null;
-    this.waypointMarkers = [];
     this.state = { mapError: false, bearing: 0, pitch: 0 };
     this.fitMap = this.fitMap.bind(this);
     this.resetNorth = this.resetNorth.bind(this);
@@ -555,7 +517,7 @@ class MapCanvas extends React.Component {
   componentDidMount() {
     try {
       const style = MAP_STYLES[this.props.mapStyle] || MAP_STYLES[DEFAULT_MAP_STYLE];
-      this.map = new window.maplibregl.Map({
+      this.map = new (window as any).maplibregl.Map({
         container: this.mapContainer,
         style,
         center: [21.03, 52.24],
@@ -568,7 +530,7 @@ class MapCanvas extends React.Component {
         this.updateRoute();
         this.fitMap();
       });
-      this.map.on('click', (event) => {
+      this.map.on('click', (event: any) => {
         this.props.onMapClick?.([event.lngLat.lng, event.lngLat.lat]);
       });
       this.map.on('move', () => {
@@ -578,7 +540,7 @@ class MapCanvas extends React.Component {
           this.setState({ bearing, pitch });
         }
       });
-      this.map.on('error', (event) => {
+      this.map.on('error', (event: any) => {
         if (!event.error || !this.map.loaded()) {
           this.setState({ mapError: true });
         }
@@ -588,7 +550,7 @@ class MapCanvas extends React.Component {
     }
   }
 
-  componentDidUpdate(previousProps) {
+  componentDidUpdate(previousProps: MapCanvasProps) {
     if (!this.map) {
       return;
     }
@@ -669,7 +631,7 @@ class MapCanvas extends React.Component {
       : DEFAULT_ORIGIN;
   }
 
-  createMarker(className, label) {
+  createMarker(className: string, label: string) {
     const element = document.createElement('div');
     element.className = className;
     element.setAttribute('aria-label', label);
@@ -696,7 +658,7 @@ class MapCanvas extends React.Component {
       return;
     }
     if (!this.originMarker) {
-      this.originMarker = new window.maplibregl.Marker({
+      this.originMarker = new (window as any).maplibregl.Marker({
         element: this.createMarker('map-origin-marker', 'Twoja lokalizacja')
       }).setLngLat(this.getOrigin()).addTo(this.map);
     } else {
@@ -715,7 +677,7 @@ class MapCanvas extends React.Component {
     this.startMarker?.remove();
     this.startMarker = null;
     if (this.props.startLocation) {
-      this.startMarker = new window.maplibregl.Marker({
+      this.startMarker = new (window as any).maplibregl.Marker({
         element: this.createMarker('map-start-marker', 'Punkt startowy'),
         anchor: 'bottom'
       }).setLngLat(this.props.startLocation).addTo(this.map);
@@ -727,7 +689,7 @@ class MapCanvas extends React.Component {
       return;
     }
     this.destinationMarker?.remove();
-    this.destinationMarker = new window.maplibregl.Marker({
+    this.destinationMarker = new (window as any).maplibregl.Marker({
       element: this.createMarker('map-destination-marker', `Cel: ${this.props.destination.name}`),
       anchor: 'bottom'
     }).setLngLat(this.props.destination.coordinates).addTo(this.map);
@@ -749,7 +711,7 @@ class MapCanvas extends React.Component {
     }
     this.removePoiMarkers();
     const pois = this.props.poiResults || [];
-    pois.forEach((poi) => {
+    pois.forEach((poi: any) => {
       const element = document.createElement('div');
       element.className = 'poi-marker';
       element.setAttribute('aria-label', poi.name);
@@ -758,7 +720,7 @@ class MapCanvas extends React.Component {
       element.addEventListener('click', () => {
         this.props.onPoiSelect?.(poi);
       });
-      const marker = new window.maplibregl.Marker({ element })
+      const marker = new (window as any).maplibregl.Marker({ element })
         .setLngLat(poi.coordinates)
         .addTo(this.map);
       this.poiMarkers.push(marker);
@@ -776,7 +738,7 @@ class MapCanvas extends React.Component {
     element.className = 'click-marker';
     element.setAttribute('aria-label', 'Wybrane miejsce');
     element.setAttribute('role', 'img');
-    this.clickMarker = new window.maplibregl.Marker({ element })
+    this.clickMarker = new (window as any).maplibregl.Marker({ element })
       .setLngLat(location)
       .addTo(this.map);
   }
@@ -791,13 +753,13 @@ class MapCanvas extends React.Component {
       return;
     }
     this.removeWaypointMarkers();
-    (this.props.waypoints || []).forEach((wp, index) => {
+    (this.props.waypoints || []).forEach((wp: any, index: number) => {
       const element = document.createElement('div');
       element.className = 'waypoint-marker';
       element.textContent = `${index + 1}`;
       element.setAttribute('aria-label', `Przystanek ${index + 1}: ${wp.name}`);
       element.setAttribute('role', 'img');
-      const marker = new window.maplibregl.Marker({ element })
+      const marker = new (window as any).maplibregl.Marker({ element })
         .setLngLat(wp.coordinates)
         .addTo(this.map);
       this.waypointMarkers.push(marker);
@@ -861,12 +823,12 @@ class MapCanvas extends React.Component {
     const routeCoordinates = this.props.route?.geometry?.coordinates || [];
     const bounds = routeCoordinates.length > 0
       ? routeCoordinates.reduce(
-        (routeBounds, coordinate) => routeBounds.extend(coordinate),
-        new window.maplibregl.LngLatBounds(routeCoordinates[0], routeCoordinates[0])
+        (routeBounds: any, coordinate: any) => routeBounds.extend(coordinate),
+        new (window as any).maplibregl.LngLatBounds(routeCoordinates[0], routeCoordinates[0])
       )
       : this.props.startLocation
-        ? new window.maplibregl.LngLatBounds(this.props.startLocation, this.props.destination.coordinates)
-        : new window.maplibregl.LngLatBounds(this.getOrigin(), this.props.destination.coordinates);
+        ? new (window as any).maplibregl.LngLatBounds(this.props.startLocation, this.props.destination.coordinates)
+        : new (window as any).maplibregl.LngLatBounds(this.getOrigin(), this.props.destination.coordinates);
     this.map.fitBounds(bounds, {
       padding: { top: 110, right: 100, bottom: 150, left: 100 },
       maxZoom: 14,
@@ -891,108 +853,203 @@ class MapCanvas extends React.Component {
       onMapDimToggle
     } = this.props;
 
-    return h('div', { className: 'map-canvas', 'aria-label': 'Interaktywna mapa Warszawy' },
-      h('div', {
-        className: 'map-surface',
-        ref: (element) => { this.mapContainer = element; }
-      }),
-      mapDimmed ? h('div', { className: 'map-dim-overlay', 'aria-hidden': 'true' }) : null,
-      this.state.mapError
-        ? h('div', { className: 'map-error', role: 'status' },
-          h('strong', null, 'Mapa jest chwilowo niedostępna'),
-          h('span', null, 'Sprawdź połączenie z internetem i odśwież stronę.')
-        )
-        : null,
-      navigationNotice
-        ? h('div', { className: 'navigation-notice', role: 'status', 'aria-live': 'polite' },
-          h(Icon, { name: navigationNotice.icon, size: 16 }),
-          h('span', null, navigationNotice.text)
-        )
-        : null,
-      navigationActive || tripComplete
-        ? h('div', { className: `navigation-instruction${tripComplete ? ' is-complete' : ''}` },
-          h('span', { className: 'maneuver-icon' }, h(Icon, {
-            name: tripComplete ? 'arrive' : currentManeuver.type,
-            size: 28
-          })),
-          h('span', { className: 'instruction-copy' },
-            h('small', null, tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance),
-            h('strong', null, tripComplete ? destination.name : getSassyInstruction(currentManeuver, this.state.sassyMode))
+    return (
+      <div className="map-canvas" aria-label="Interaktywna mapa Warszawy">
+        <div
+          className="map-surface"
+          ref={(element) => { this.mapContainer = element as HTMLDivElement; }}
+        />
+        {mapDimmed ? <div className="map-dim-overlay" aria-hidden="true" /> : null}
+        {this.state.mapError
+          ? (
+            <div className="map-error" role="status">
+              <strong>Mapa jest chwilowo niedostępna</strong>
+              <span>Sprawdź połączenie z internetem i odśwież stronę.</span>
+            </div>
           )
-        )
-        : null,
-        h('div', { className: 'map-toolbar' },
-        h('button', {
-          className: `map-tool${mapDimmed ? ' is-active' : ''}`,
-          type: 'button',
-          onClick: onMapDimToggle,
-          'aria-label': mapDimmed ? 'Wyłącz przyciemnienie' : 'Przyciemnij mapę'
-        }, h(Icon, { name: 'moon' })),
-        h('button', {
-          className: `map-tool${mapStyle !== 'streets' ? ' is-active' : ''}`,
-          type: 'button',
-          onClick: onMapStyleChange,
-          'aria-label': `Styl: ${mapStyle === 'dark' ? 'ciemny' : mapStyle === 'satellite' ? 'satelita' : 'ulice'}`
-        }, h(Icon, { name: 'layers' })),
-        h('button', {
-          className: `map-tool${this.state.bearing !== 0 || this.state.pitch !== 0 ? ' is-active' : ''}`,
-          type: 'button',
-          onClick: this.resetNorth,
-          'aria-label': 'Resetuj północ i pochylenie'
-        },
-          h('span', {
-            style: { display: 'block', transform: `rotate(${-this.state.bearing}deg)`, transition: 'transform 240ms ease' }
-          }, h(Icon, { name: 'compass' }))
-        ),
-        h('div', { className: 'zoom-group' },
-          h('button', {
-            className: 'map-tool',
-            type: 'button',
-            onClick: onZoomIn,
-            disabled: mapZoom >= 3,
-            'aria-label': 'Powiększ mapę'
-          }, '+'),
-          h('button', {
-            className: 'map-tool',
-            type: 'button',
-            onClick: onZoomOut,
-            disabled: mapZoom <= 0.3,
-            'aria-label': 'Pomniejsz mapę'
-          }, '−')
-        ),
-        h('span', { className: 'zoom-status', 'aria-live': 'polite' }, `${Math.round(mapZoom * 100)}%`)
-      ),
-      h('div', { className: 'tilt-group', 'aria-label': 'Pochylenie mapy' },
-        h('button', {
-          className: 'map-tool',
-          type: 'button',
-          onClick: () => this.map?.easeTo({ pitch: Math.min(this.state.pitch + 15, 60), duration: 240 }),
-          disabled: this.state.pitch >= 60,
-          'aria-label': 'Pochyl bardziej'
-        }, '⌄'),
-        h('button', {
-          className: 'map-tool',
-          type: 'button',
-          onClick: () => this.map?.easeTo({ pitch: Math.max(this.state.pitch - 15, 0), duration: 240 }),
-          disabled: this.state.pitch <= 0,
-          'aria-label': 'Wypoziomuj'
-        }, '⌃')
-      ),
-      locationStatus === 'ready' && !navigationActive && !tripComplete
-        ? h('div', { className: 'location-confirmation' },
-          h(Icon, { name: 'location', size: 15 }),
-          h('span', null, 'Twoja lokalizacja')
-        )
-        : null,
-      h('div', { className: 'map-credit' }, mapStyle === 'dark'
-        ? '© CARTO · OpenStreetMap'
-        : mapStyle === 'satellite' ? '© Esri · OpenStreetMap' : 'Dane © OpenStreetMap · OpenFreeMap')
+          : null}
+        {navigationNotice
+          ? (
+            <div className="navigation-notice" role="status" aria-live="polite">
+              <Icon name={navigationNotice.icon} size={16} />
+              <span>{navigationNotice.text}</span>
+            </div>
+          )
+          : null}
+        {navigationActive || tripComplete
+          ? (
+            <div className={`navigation-instruction${tripComplete ? ' is-complete' : ''}`}>
+              <span className="maneuver-icon">
+                <Icon name={tripComplete ? 'arrive' : currentManeuver.type} size={28} />
+              </span>
+              <span className="instruction-copy">
+                <small>{tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance}</small>
+                <strong>{tripComplete ? destination.name : getSassyInstruction(currentManeuver, this.state.sassyMode!)}</strong>
+              </span>
+            </div>
+          )
+          : null}
+        <div className="map-toolbar">
+          <button
+            className={`map-tool${mapDimmed ? ' is-active' : ''}`}
+            type="button"
+            onClick={onMapDimToggle}
+            aria-label={mapDimmed ? 'Wyłącz przyciemnienie' : 'Przyciemnij mapę'}
+          >
+            <Icon name="moon" />
+          </button>
+          <button
+            className={`map-tool${mapStyle !== 'streets' ? ' is-active' : ''}`}
+            type="button"
+            onClick={onMapStyleChange}
+            aria-label={`Styl: ${mapStyle === 'dark' ? 'ciemny' : mapStyle === 'satellite' ? 'satelita' : 'ulice'}`}
+          >
+            <Icon name="layers" />
+          </button>
+          <button
+            className={`map-tool${this.state.bearing !== 0 || this.state.pitch !== 0 ? ' is-active' : ''}`}
+            type="button"
+            onClick={this.resetNorth}
+            aria-label="Resetuj północ i pochylenie"
+          >
+            <span style={{ display: 'block', transform: `rotate(${-this.state.bearing}deg)`, transition: 'transform 240ms ease' }}>
+              <Icon name="compass" />
+            </span>
+          </button>
+          <div className="zoom-group">
+            <button
+              className="map-tool"
+              type="button"
+              onClick={onZoomIn}
+              disabled={mapZoom >= 3}
+              aria-label="Powiększ mapę"
+            >
+              +
+            </button>
+            <button
+              className="map-tool"
+              type="button"
+              onClick={onZoomOut}
+              disabled={mapZoom <= 0.3}
+              aria-label="Pomniejsz mapę"
+            >
+              −
+            </button>
+          </div>
+          <span className="zoom-status" aria-live="polite">{`${Math.round(mapZoom * 100)}%`}</span>
+        </div>
+        <div className="tilt-group" aria-label="Pochylenie mapy">
+          <button
+            className="map-tool"
+            type="button"
+            onClick={() => this.map?.easeTo({ pitch: Math.min(this.state.pitch + 15, 60), duration: 240 })}
+            disabled={this.state.pitch >= 60}
+            aria-label="Pochyl bardziej"
+          >
+            ⌄
+          </button>
+          <button
+            className="map-tool"
+            type="button"
+            onClick={() => this.map?.easeTo({ pitch: Math.max(this.state.pitch - 15, 0), duration: 240 })}
+            disabled={this.state.pitch <= 0}
+            aria-label="Wypoziomuj"
+          >
+            ⌃
+          </button>
+        </div>
+        {locationStatus === 'ready' && !navigationActive && !tripComplete
+          ? (
+            <div className="location-confirmation">
+              <Icon name="location" size={15} />
+              <span>Twoja lokalizacja</span>
+            </div>
+          )
+          : null}
+        <div className="map-credit">
+          {mapStyle === 'dark'
+            ? '© CARTO · OpenStreetMap'
+            : mapStyle === 'satellite' ? '© Esri · OpenStreetMap' : 'Dane © OpenStreetMap · OpenFreeMap'}
+        </div>
+      </div>
     );
   }
 }
 
-class App extends React.Component {
-  constructor(props) {
+interface AppState {
+  destination: any;
+  query: string;
+  searchOpen: boolean;
+  searchResults: any[];
+  searchStatus: string;
+  searchMessage: string;
+  route: any;
+  routeManeuvers: any;
+  routeSummary: any;
+  routeAlternatives: any[];
+  selectedRouteIndex: number;
+  routeStatus: string;
+  routeMessage: string;
+  travelMode: string;
+  avoidedFeatures: string[];
+  recentDestinations: any[];
+  favoritePlaces: any[];
+  waypoints: any[];
+  navigationActive: boolean;
+  navigationPaused: boolean;
+  stepIndex: number;
+  routeProgress: number;
+  distanceToManeuver: number | null;
+  remainingDistance: number | null;
+  remainingDuration: number | null;
+  tripComplete: boolean;
+  voiceStudioOpen: boolean;
+  voiceClips: Record<string, any>;
+  voiceCatalog: any;
+  recordingPhraseId: string | null;
+  voiceMessage: string;
+  locationStatus: string;
+  locationMessage: string;
+  gpsSignal: string;
+  networkOnline: boolean;
+  userCoordinates: any;
+  mapZoom: number;
+  mapStyle: string;
+  menuOpen: boolean;
+  poiCategory: number | null;
+  poiResults: any[];
+  poiStatus: string;
+  poiMessage: string;
+  mapDimmed: boolean;
+  settingsOpen: boolean;
+  sassyMode: boolean;
+  clickedLocation: [number, number] | null;
+  clickedLocationName: string;
+  clickedLocationStatus: string;
+  startLocation: [number, number] | null;
+  startLocationName: string;
+}
+
+class App extends React.Component<{}, AppState> {
+  searchInput: HTMLInputElement | null = null;
+  voiceCloseButton: HTMLButtonElement | null = null;
+  menuContainer: HTMLDivElement | null = null;
+  locationWatchId: number | null = null;
+  mediaRecorder: MediaRecorder | null = null;
+  mediaStream: MediaStream | null = null;
+  recordingChunks: Blob[] = [];
+  currentAudio: HTMLAudioElement | null = null;
+  currentAudioCompletion: (() => void) | null = null;
+  voicePlaybackToken: number = 0;
+  announcedDistanceThresholds: Set<number> = new Set();
+  offRouteSince: number | null = null;
+  lastRerouteAt: number = 0;
+  rerouteInProgress: boolean = false;
+  searchTimer: ReturnType<typeof setTimeout> | null = null;
+  searchRequest: AbortController | null = null;
+  routeRequest: AbortController | null = null;
+
+  constructor(props: {}) {
     super(props);
     this.state = {
       destination: DESTINATIONS[1],
@@ -1047,23 +1104,6 @@ class App extends React.Component {
       startLocation: null,
       startLocationName: ''
     };
-    this.searchInput = null;
-    this.voiceCloseButton = null;
-    this.menuContainer = null;
-    this.locationWatchId = null;
-    this.mediaRecorder = null;
-    this.mediaStream = null;
-    this.recordingChunks = [];
-    this.currentAudio = null;
-    this.currentAudioCompletion = null;
-    this.voicePlaybackToken = 0;
-    this.announcedDistanceThresholds = new Set();
-    this.offRouteSince = null;
-    this.lastRerouteAt = 0;
-    this.rerouteInProgress = false;
-    this.searchTimer = null;
-    this.searchRequest = null;
-    this.routeRequest = null;
     this.handleGlobalShortcut = this.handleGlobalShortcut.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -1118,19 +1158,19 @@ class App extends React.Component {
     window.removeEventListener('offline', this.handleNetworkOffline);
     window.removeEventListener('online', this.handleNetworkOnline);
     document.removeEventListener('mousedown', this.handleDocumentPointerDown);
-    window.clearTimeout(this.searchTimer);
+    window.clearTimeout(this.searchTimer!);
     this.searchRequest?.abort();
     this.routeRequest?.abort();
     this.stopLocationWatch();
     this.releaseMediaStream();
     this.stopCurrentAudio();
-    Object.values(this.state.voiceClips).forEach((clip) => window.URL.revokeObjectURL(clip.url));
+    Object.values(this.state.voiceClips).forEach((clip: any) => window.URL.revokeObjectURL(clip.url));
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
   }
 
-  handleGlobalShortcut(event) {
+  handleGlobalShortcut(event: KeyboardEvent) {
     if (!this.state.navigationActive && !this.state.tripComplete && this.searchInput
       && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
@@ -1158,8 +1198,8 @@ class App extends React.Component {
     }
   }
 
-  handleDocumentPointerDown(event) {
-    if (this.state.menuOpen && this.menuContainer && !this.menuContainer.contains(event.target)) {
+  handleDocumentPointerDown(event: MouseEvent) {
+    if (this.state.menuOpen && this.menuContainer && !this.menuContainer.contains(event.target as Node)) {
       this.setState({ menuOpen: false });
     }
   }
@@ -1191,10 +1231,10 @@ class App extends React.Component {
     }
   }
 
-  selectDestination(destination) {
-    window.clearTimeout(this.searchTimer);
+  selectDestination(destination: any) {
+    window.clearTimeout(this.searchTimer!);
     this.searchRequest?.abort();
-    this.setState((state) => ({
+    this.setState((state: AppState) => ({
       destination,
       query: destination.name,
       searchOpen: false,
@@ -1209,7 +1249,7 @@ class App extends React.Component {
       routeMessage: '',
       recentDestinations: [
         destination,
-        ...state.recentDestinations.filter((place) => place.id !== destination.id)
+        ...state.recentDestinations.filter((place: any) => place.id !== destination.id)
       ].slice(0, 8)
     }), () => {
       writeStoredPlaces(PLACE_HISTORY_KEY, this.state.recentDestinations);
@@ -1217,24 +1257,24 @@ class App extends React.Component {
     });
   }
 
-  toggleFavorite(destination, event) {
+  toggleFavorite(destination: any, event?: any) {
     if (event) {
       event.stopPropagation();
       event.preventDefault();
     }
-    this.setState((state) => {
-      const exists = state.favoritePlaces.some((p) => p.id === destination.id);
+    this.setState((state: AppState) => {
+      const exists = state.favoritePlaces.some((p: any) => p.id === destination.id);
       const favoritePlaces = exists
-        ? state.favoritePlaces.filter((p) => p.id !== destination.id)
+        ? state.favoritePlaces.filter((p: any) => p.id !== destination.id)
         : [destination, ...state.favoritePlaces].slice(0, 8);
       writeStoredPlaces(FAVORITE_PLACES_KEY, favoritePlaces);
       return { favoritePlaces };
     });
   }
 
-  addWaypoint(place) {
+  addWaypoint(place: any) {
     const waypoint = { id: `wp-${place.id || place.coordinates.join('-')}`, name: place.name, coordinates: place.coordinates };
-    this.setState((state) => ({
+    this.setState((state: AppState) => ({
       waypoints: [...state.waypoints, waypoint]
     }), () => {
       if (this.state.routeStatus === 'ready') {
@@ -1243,9 +1283,9 @@ class App extends React.Component {
     });
   }
 
-  removeWaypoint(waypointId) {
-    this.setState((state) => ({
-      waypoints: state.waypoints.filter((w) => w.id !== waypointId)
+  removeWaypoint(waypointId: string) {
+    this.setState((state: AppState) => ({
+      waypoints: state.waypoints.filter((w: any) => w.id !== waypointId)
     }), () => {
       if (this.state.routeStatus === 'ready') {
         this.calculateRoute();
@@ -1253,7 +1293,7 @@ class App extends React.Component {
     });
   }
 
-  async calculateRoute(startCoordinates = null) {
+  async calculateRoute(startCoordinates?: any) {
     if (!navigator.onLine) {
       this.setState({
         routeStatus: 'error',
@@ -1277,7 +1317,7 @@ class App extends React.Component {
       mode: this.state.travelMode
     });
     if (this.state.waypoints.length > 0) {
-      routeParameters.set('waypoints', this.state.waypoints.map((w) => w.coordinates.join(',')).join('|'));
+      routeParameters.set('waypoints', this.state.waypoints.map((w: any) => w.coordinates.join(',')).join('|'));
     }
     if (this.state.avoidedFeatures.length > 0) {
       routeParameters.set('avoid', this.state.avoidedFeatures.join(','));
@@ -1297,7 +1337,7 @@ class App extends React.Component {
       }
       const routeAlternatives = payload.features.map(createRouteOption);
       const { route, routeManeuvers, summary } = routeAlternatives[0];
-      this.setState((state) => ({
+      this.setState((state: AppState) => ({
         route,
         routeManeuvers,
         routeSummary: summary,
@@ -1312,7 +1352,7 @@ class App extends React.Component {
         }
       }));
       return { route, routeManeuvers, summary };
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') return null;
       this.setState({
         route: null,
@@ -1327,9 +1367,9 @@ class App extends React.Component {
     }
   }
 
-  handleSearchChange(event) {
+  handleSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
     const query = event.target.value;
-    window.clearTimeout(this.searchTimer);
+    window.clearTimeout(this.searchTimer!);
     this.searchRequest?.abort();
     this.setState({
       query,
@@ -1344,7 +1384,7 @@ class App extends React.Component {
     this.searchTimer = window.setTimeout(() => this.searchPlaces(query), 350);
   }
 
-  async searchPlaces(query) {
+  async searchPlaces(query: string) {
     const normalizedQuery = query.trim();
     this.searchRequest = new AbortController();
     try {
@@ -1355,7 +1395,7 @@ class App extends React.Component {
       if (!response.ok) {
         throw new Error(payload.error || 'Nie udało się wyszukać miejsca.');
       }
-      const results = (payload.features || []).map((feature) => {
+      const results = (payload.features || []).map((feature: any) => {
         const properties = feature.properties || {};
         const label = properties.label || properties.name || 'Wybrane miejsce';
         const locality = properties.locality || properties.county || properties.region || 'Polska';
@@ -1378,7 +1418,7 @@ class App extends React.Component {
         searchStatus: 'ready',
         searchMessage: results.length === 0 ? 'Nie znaleźliśmy takiego miejsca.' : ''
       });
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         return;
       }
@@ -1390,7 +1430,7 @@ class App extends React.Component {
     }
   }
 
-  requestCurrentPosition() {
+  requestCurrentPosition(): Promise<GeolocationPosition> {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, {
         enableHighAccuracy: true,
@@ -1400,7 +1440,7 @@ class App extends React.Component {
     });
   }
 
-  handlePositionUpdate(position) {
+  handlePositionUpdate(position: GeolocationPosition) {
     const userCoordinates = readPosition(position);
     const gpsSignal = userCoordinates.accuracy > 80 ? 'weak' : 'good';
     const previousGpsSignal = this.state.gpsSignal;
@@ -1425,7 +1465,7 @@ class App extends React.Component {
     });
   }
 
-  handlePositionError(error) {
+  handlePositionError(error: GeolocationPositionError) {
     const permissionDenied = error && error.code === 1;
     const gpsWasAvailable = this.state.gpsSignal !== 'lost';
     this.setState({
@@ -1490,11 +1530,11 @@ class App extends React.Component {
       });
       await this.calculateRoute(userCoordinates);
     } catch (error) {
-      this.handlePositionError(error);
+      this.handlePositionError(error as GeolocationPositionError);
     }
   }
 
-  selectTravelMode(travelMode) {
+  selectTravelMode(travelMode: string) {
     if (travelMode === this.state.travelMode) {
       return;
     }
@@ -1510,8 +1550,8 @@ class App extends React.Component {
     }, this.calculateRoute);
   }
 
-  toggleRoutePreference(featureId) {
-    this.setState((state) => ({
+  toggleRoutePreference(featureId: string) {
+    this.setState((state: AppState) => ({
       avoidedFeatures: state.avoidedFeatures.includes(featureId)
         ? state.avoidedFeatures.filter((item) => item !== featureId)
         : [...state.avoidedFeatures, featureId],
@@ -1522,12 +1562,12 @@ class App extends React.Component {
     }), this.calculateRoute);
   }
 
-  selectRouteAlternative(selectedRouteIndex) {
+  selectRouteAlternative(selectedRouteIndex: number) {
     const routeOption = this.state.routeAlternatives[selectedRouteIndex];
     if (!routeOption || selectedRouteIndex === this.state.selectedRouteIndex) {
       return;
     }
-    this.setState((state) => ({
+    this.setState((state: AppState) => ({
       route: routeOption.route,
       routeManeuvers: routeOption.routeManeuvers,
       routeSummary: routeOption.summary,
@@ -1540,8 +1580,8 @@ class App extends React.Component {
     }));
   }
 
-  adjustMapZoom(delta) {
-    this.setState((state) => ({
+  adjustMapZoom(delta: number) {
+    this.setState((state: AppState) => ({
       mapZoom: Math.min(3, Math.max(0.3, Number((state.mapZoom + delta).toFixed(2))))
     }));
   }
@@ -1550,7 +1590,7 @@ class App extends React.Component {
     this.setState({ mapZoom: 1 });
   }
 
-  async fetchPois(categoryId) {
+  async fetchPois(categoryId: number) {
     if (!categoryId) return;
     this.setState({ poiCategory: categoryId, poiResults: [], poiStatus: 'loading' });
     try {
@@ -1560,7 +1600,7 @@ class App extends React.Component {
       if (!response.ok) {
         throw new Error(payload.error || 'Nie udało się pobrać miejsc.');
       }
-      const pois = (payload.features || []).map((feature) => {
+      const pois = (payload.features || []).map((feature: any) => {
         const props = feature.properties || {};
         return {
           id: props.osm_id || props.id || `${feature.geometry.coordinates.join('-')}`,
@@ -1573,11 +1613,11 @@ class App extends React.Component {
       });
       this.setState({ poiResults: pois, poiStatus: 'ready', poiMessage: '' });
     } catch (error) {
-      this.setState({ poiStatus: 'error', poiMessage: error.message });
+      this.setState({ poiStatus: 'error', poiMessage: (error as any).message });
     }
   }
 
-  async handleMapClick(coordinates) {
+  async handleMapClick(coordinates: [number, number]) {
     if (this.state.navigationActive || this.state.tripComplete) {
       return;
     }
@@ -1652,7 +1692,7 @@ class App extends React.Component {
       address: `${clickedLocation[1].toFixed(5)}, ${clickedLocation[0].toFixed(5)}`,
       coordinates: clickedLocation
     };
-    this.setState((prev) => ({
+    this.setState((prev: AppState) => ({
       clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle',
       waypoints: [...prev.waypoints, waypoint]
     }), () => {
@@ -1662,7 +1702,7 @@ class App extends React.Component {
     });
   }
 
-  selectPoiDestination(poi) {
+  selectPoiDestination(poi: any) {
     const destination = {
       id: `poi-${poi.id}`,
       name: poi.name,
@@ -1677,7 +1717,7 @@ class App extends React.Component {
   }
 
   toggleMapStyle() {
-    this.setState((state) => {
+    this.setState((state: AppState) => {
       const currentIndex = MAP_STYLE_LIST.indexOf(state.mapStyle);
       const nextIndex = (currentIndex + 1) % MAP_STYLE_LIST.length;
       return { mapStyle: MAP_STYLE_LIST[nextIndex] };
@@ -1685,13 +1725,13 @@ class App extends React.Component {
   }
 
   toggleMapDim() {
-    this.setState((state) => ({ mapDimmed: !state.mapDimmed }));
+    this.setState((state: AppState) => ({ mapDimmed: !state.mapDimmed }));
   }
 
   async loadVoiceClips() {
     try {
       const storedClips = await readStoredVoiceClips();
-      const voiceClips = storedClips.reduce((clips, storedClip) => {
+      const voiceClips = storedClips.reduce((clips: Record<string, any>, storedClip: any) => {
         clips[storedClip.id] = {
           blob: storedClip.blob,
           url: window.URL.createObjectURL(storedClip.blob)
@@ -1745,7 +1785,7 @@ class App extends React.Component {
     }
   }
 
-  async startVoiceRecording(phraseId) {
+  async startVoiceRecording(phraseId: string) {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function'
       || typeof window.MediaRecorder !== 'function') {
       this.setState({ voiceMessage: 'Ta przeglądarka nie obsługuje nagrywania dźwięku.' });
@@ -1755,14 +1795,14 @@ class App extends React.Component {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.recordingChunks = [];
-      this.mediaRecorder = new window.MediaRecorder(this.mediaStream);
-      this.mediaRecorder.ondataavailable = (event) => {
+      this.mediaRecorder = new MediaRecorder(this.mediaStream);
+      this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
         if (event.data.size > 0) {
           this.recordingChunks.push(event.data);
         }
       };
       this.mediaRecorder.onstop = async () => {
-        const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
+        const mimeType = this.mediaRecorder!.mimeType || 'audio/webm';
         const blob = new Blob(this.recordingChunks, { type: mimeType });
         this.releaseMediaStream();
 
@@ -1773,7 +1813,7 @@ class App extends React.Component {
 
         try {
           await persistVoiceClip(phraseId, blob);
-          this.setState((state) => {
+          this.setState((state: AppState) => {
             const previousClip = state.voiceClips[phraseId];
             if (previousClip) {
               window.URL.revokeObjectURL(previousClip.url);
@@ -1808,20 +1848,20 @@ class App extends React.Component {
     this.setState({ recordingPhraseId: null });
   }
 
-  playVoiceClip(phraseId) {
+  playVoiceClip(phraseId: string) {
     const playbackToken = this.voicePlaybackToken + 1;
     this.voicePlaybackToken = playbackToken;
     return this.playVoiceItem(phraseId, playbackToken);
   }
 
-  playVoiceItem(phraseId, playbackToken) {
+  playVoiceItem(phraseId: string, playbackToken: number) {
     const clip = this.state.voiceClips[phraseId];
     const audioUrl = clip?.url || getDefaultVoiceUrl(phraseId);
 
     this.stopCurrentAudio();
     this.currentAudio = new Audio(audioUrl);
-    return new Promise((resolve, reject) => {
-      const audio = this.currentAudio;
+    return new Promise<void>((resolve, reject) => {
+      const audio = this.currentAudio!;
       const complete = () => {
         if (this.currentAudioCompletion === complete) {
           this.currentAudioCompletion = null;
@@ -1843,7 +1883,7 @@ class App extends React.Component {
     });
   }
 
-  async playVoiceSequence(phraseIds) {
+  async playVoiceSequence(phraseIds: (string | null | undefined)[]) {
     const playbackToken = this.voicePlaybackToken + 1;
     this.voicePlaybackToken = playbackToken;
     this.stopCurrentAudio();
@@ -1851,7 +1891,7 @@ class App extends React.Component {
       if (playbackToken !== this.voicePlaybackToken) {
         return;
       }
-      await this.playVoiceItem(phraseId, playbackToken);
+      await this.playVoiceItem(phraseId!, playbackToken);
     }
   }
 
@@ -1866,10 +1906,10 @@ class App extends React.Component {
     }
   }
 
-  async deleteVoiceClip(phraseId) {
+  async deleteVoiceClip(phraseId: string) {
     try {
       await removeVoiceClip(phraseId);
-      this.setState((state) => {
+      this.setState((state: AppState) => {
         const clip = state.voiceClips[phraseId];
         if (clip) {
           window.URL.revokeObjectURL(clip.url);
@@ -1883,7 +1923,7 @@ class App extends React.Component {
     }
   }
 
-  announceInstruction(instruction, voiceId, distance = null) {
+  announceInstruction(instruction: string, voiceId: string, distance: number | null = null) {
     const phraseIds = voiceId === 'arrive'
       ? [voiceId]
       : [getDistanceVoiceId(distance), voiceId];
@@ -1914,7 +1954,7 @@ class App extends React.Component {
     });
   }
 
-  async recalculateRoute(userCoordinates) {
+  async recalculateRoute(userCoordinates: any) {
     const now = Date.now();
     if (this.rerouteInProgress || !this.state.navigationActive
       || !navigator.onLine || now - this.lastRerouteAt < 30000) {
@@ -1960,14 +2000,14 @@ class App extends React.Component {
     this.rerouteInProgress = false;
   }
 
-  updateNavigationProgress(userCoordinates) {
+  updateNavigationProgress(userCoordinates: any) {
     const routeCoordinates = this.state.route?.geometry?.coordinates || [];
     const maneuvers = this.state.routeManeuvers || [];
     if (routeCoordinates.length < 2 || maneuvers.length === 0) {
       return;
     }
 
-    const userPoint = [userCoordinates.longitude, userCoordinates.latitude];
+    const userPoint: [number, number] = [userCoordinates.longitude, userCoordinates.latitude];
     const destinationDistance = distanceBetween(userPoint, this.state.destination.coordinates);
     const arrivalRadius = Math.max(25, Math.min(userCoordinates.accuracy || 25, 50));
     if (destinationDistance <= arrivalRadius) {
@@ -1995,7 +2035,7 @@ class App extends React.Component {
     this.offRouteSince = null;
 
     const routeIndex = routePoint.segmentIndex + routePoint.fraction;
-    let stepIndex = maneuvers.findIndex((maneuver) => maneuver.endIndex >= routeIndex);
+    let stepIndex = maneuvers.findIndex((maneuver: any) => maneuver.endIndex >= routeIndex);
     if (stepIndex < 0) {
       stepIndex = maneuvers.length - 1;
     }
@@ -2022,11 +2062,12 @@ class App extends React.Component {
       : 0;
     const previousDistanceToManeuver = this.state.distanceToManeuver;
     const stepChanged = stepIndex !== this.state.stepIndex;
-    const crossedThreshold = stepChanged || !Number.isFinite(previousDistanceToManeuver)
+    const prevDist = previousDistanceToManeuver ?? 0;
+    const crossedThreshold = stepChanged || !Number.isFinite(prevDist)
       ? null
       : [1000, 500, 200, 100, 50, 20]
         .filter((threshold) => (
-          previousDistanceToManeuver > threshold
+          prevDist > threshold
           && distanceToManeuver <= threshold
           && !this.announcedDistanceThresholds.has(threshold)
         ))
@@ -2090,7 +2131,7 @@ class App extends React.Component {
         maneuvers = routeResult.routeManeuvers;
         routeSummary = routeResult.summary;
       } catch (error) {
-        this.handlePositionError(error);
+        this.handlePositionError(error as GeolocationPositionError);
         return;
       }
     }
@@ -2148,289 +2189,358 @@ class App extends React.Component {
     this.stopLocationWatch();
   }
 
-  renderPlannerFlow(query, recentDestinations, searchOpen) {
-    return h('div', { className: 'sidebar-flow planner-flow' },
-      h('section', { className: 'journey-panel' },
-        h('p', { className: 'eyebrow' }, 'Nowa podróż'),
-        h('h1', null, 'Dokąd jedziemy?'),
-        h('p', { className: 'intro' }, 'Wybierz cel. Resztę poprowadzimy spokojnie — i Twoim głosem.'),
-        h('div', { className: 'route-options', 'aria-label': 'Sposób i preferencje podróży' },
-          h('div', { className: 'travel-mode-picker', role: 'group', 'aria-label': 'Sposób podróży' },
-            TRAVEL_MODES.map((mode) => h('button', {
-              className: `travel-mode${this.state.travelMode === mode.id ? ' is-active' : ''}`,
-              key: mode.id,
-              type: 'button',
-              onClick: () => this.selectTravelMode(mode.id),
-              'aria-pressed': this.state.travelMode === mode.id
-            }, mode.label))
-          ),
-          h('div', { className: 'route-preferences' },
-            ROUTE_PREFERENCES
-              .filter((preference) => !preference.carOnly || this.state.travelMode === 'car')
-              .map((preference) => {
-                const avoided = this.state.avoidedFeatures.includes(preference.id);
-                return h('button', {
-                  className: `route-preference${avoided ? ' is-active' : ''}`,
-                  key: preference.id,
-                  type: 'button',
-                  onClick: () => this.toggleRoutePreference(preference.id),
-                  'aria-pressed': avoided
-                }, `${avoided ? 'Omijaj' : 'Zezwalaj'}: ${preference.label.toLocaleLowerCase('pl')}`);
-              })
-          )
-        ),
-        this.state.waypoints.length > 0
-          ? h('div', { className: 'waypoint-list' },
-            h('span', { className: 'waypoint-list-label' }, 'Przystanki'),
-            this.state.waypoints.map((wp, index) => h('div', { className: 'waypoint-row', key: wp.id },
-              h('span', { className: 'waypoint-index' }, `${index + 1}`),
-              h('span', { className: 'waypoint-name' }, wp.name),
-              h('button', {
-                className: 'waypoint-remove',
-                type: 'button',
-                onClick: () => this.removeWaypoint(wp.id),
-                'aria-label': `Usuń przystanek: ${wp.name}`
-              }, h(Icon, { name: 'close', size: 14 }))
-            ))
-          )
-          : null,
-        h('div', { className: 'search-area' },
-          h('label', { className: 'search-box' },
-            h(Icon, { name: 'search', size: 21 }),
-            h('input', {
-              ref: (element) => { this.searchInput = element; },
-              type: 'search',
-              value: query,
-              placeholder: 'Wpisz adres lub miejsce',
-              'aria-label': 'Cel podróży',
-              'aria-expanded': searchOpen,
-              onFocus: () => this.setState({ searchOpen: true }),
-              onChange: this.handleSearchChange
-            }),
-            query
-              ? h('button', {
-                className: 'search-clear',
-                type: 'button',
-                onClick: () => {
-                  this.setState({ query: '', searchOpen: false, searchResults: [], searchStatus: 'idle', searchMessage: '' });
-                  this.searchInput?.focus();
-                },
-                'aria-label': 'Wyczyść wyszukiwanie'
-              }, h(Icon, { name: 'close', size: 17 }))
-              : h('kbd', null, '⌘ K')
-          ),
-          searchOpen ? this.renderSearchResults() : null
-        ),
-        h('button', {
-          className: `location-button is-${this.state.locationStatus}`,
-          type: 'button',
-          onClick: this.locateUser,
-          disabled: this.state.locationStatus === 'locating'
-        },
-          h(Icon, { name: 'location' }),
-          h('span', null, this.state.locationStatus === 'locating'
-            ? 'Ustalam lokalizację…'
-            : this.state.locationStatus === 'ready' ? 'Lokalizacja ustawiona' : 'Użyj mojej lokalizacji')
-        ),
-        this.state.locationMessage
-          ? h('p', {
-            className: `location-message is-${this.state.locationStatus}`,
-            role: 'status',
-            'aria-live': 'polite'
-          }, this.state.locationMessage)
-          : null,
-        this.state.routeAlternatives.length > 1
-          ? h('div', { className: 'route-alternatives', 'aria-label': 'Warianty trasy' },
-            h('span', { className: 'route-alternatives-label' }, 'Warianty trasy'),
-            h('div', { className: 'route-alternative-list' },
-              this.state.routeAlternatives.map((routeOption, index) => h('button', {
-                className: `route-alternative${this.state.selectedRouteIndex === index ? ' is-active' : ''}`,
-                key: index,
-                type: 'button',
-                onClick: () => this.selectRouteAlternative(index),
-                'aria-pressed': this.state.selectedRouteIndex === index
-              },
-              h('strong', null, index === 0 ? 'Najszybsza' : `Trasa ${index + 1}`),
-              h('small', null,
-                `${formatDuration(routeOption.summary.duration)} · ${formatDistance(routeOption.summary.distance)}`)
-              ))
+  renderPlannerFlow(query: string, recentDestinations: any[], searchOpen: boolean) {
+    return (
+      <div className="sidebar-flow planner-flow">
+        <section className="journey-panel">
+          <p className="eyebrow">Nowa podróż</p>
+          <h1>Dokąd jedziemy?</h1>
+          <p className="intro">Wybierz cel. Resztę poprowadzimy spokojnie — i Twoim głosem.</p>
+          <div className="route-options" aria-label="Sposób i preferencje podróży">
+            <div className="travel-mode-picker" role="group" aria-label="Sposób podróży">
+              {TRAVEL_MODES.map((mode) => (
+                <button
+                  className={`travel-mode${this.state.travelMode === mode.id ? ' is-active' : ''}`}
+                  key={mode.id}
+                  type="button"
+                  onClick={() => this.selectTravelMode(mode.id)}
+                  aria-pressed={this.state.travelMode === mode.id}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            <div className="route-preferences">
+              {ROUTE_PREFERENCES
+                .filter((preference) => !preference.carOnly || this.state.travelMode === 'car')
+                .map((preference) => {
+                  const avoided = this.state.avoidedFeatures.includes(preference.id);
+                  return (
+                    <button
+                      className={`route-preference${avoided ? ' is-active' : ''}`}
+                      key={preference.id}
+                      type="button"
+                      onClick={() => this.toggleRoutePreference(preference.id)}
+                      aria-pressed={avoided}
+                    >
+                      {`${avoided ? 'Omijaj' : 'Zezwalaj'}: ${preference.label.toLocaleLowerCase('pl')}`}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+          {this.state.waypoints.length > 0
+            ? (
+              <div className="waypoint-list">
+                <span className="waypoint-list-label">Przystanki</span>
+                {this.state.waypoints.map((wp: any, index: number) => (
+                  <div className="waypoint-row" key={wp.id}>
+                    <span className="waypoint-index">{`${index + 1}`}</span>
+                    <span className="waypoint-name">{wp.name}</span>
+                    <button
+                      className="waypoint-remove"
+                      type="button"
+                      onClick={() => this.removeWaypoint(wp.id)}
+                      aria-label={`Usuń przystanek: ${wp.name}`}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )
+            : null}
+          <div className="search-area">
+            <label className="search-box">
+              <Icon name="search" size={21} />
+              <input
+                ref={(element) => { this.searchInput = element as HTMLInputElement; }}
+                type="search"
+                value={query}
+                placeholder="Wpisz adres lub miejsce"
+                aria-label="Cel podróży"
+                aria-expanded={searchOpen}
+                onFocus={() => this.setState({ searchOpen: true })}
+                onChange={this.handleSearchChange}
+              />
+              {query
+                ? (
+                  <button
+                    className="search-clear"
+                    type="button"
+                    onClick={() => {
+                      this.setState({ query: '', searchOpen: false, searchResults: [], searchStatus: 'idle', searchMessage: '' });
+                      this.searchInput?.focus();
+                    }}
+                    aria-label="Wyczyść wyszukiwanie"
+                  >
+                    <Icon name="close" size={17} />
+                  </button>
+                )
+                : <kbd>⌘ K</kbd>}
+            </label>
+            {searchOpen ? this.renderSearchResults() : null}
+          </div>
+          <button
+            className={`location-button is-${this.state.locationStatus}`}
+            type="button"
+            onClick={this.locateUser}
+            disabled={this.state.locationStatus === 'locating'}
+          >
+            <Icon name="location" />
+            <span>
+              {this.state.locationStatus === 'locating'
+                ? 'Ustalam lokalizację…'
+                : this.state.locationStatus === 'ready' ? 'Lokalizacja ustawiona' : 'Użyj mojej lokalizacji'}
+            </span>
+          </button>
+          {this.state.locationMessage
+            ? (
+              <p
+                className={`location-message is-${this.state.locationStatus}`}
+                role="status"
+                aria-live="polite"
+              >
+                {this.state.locationMessage}
+              </p>
+            )
+            : null}
+          {this.state.routeAlternatives.length > 1
+            ? (
+              <div className="route-alternatives" aria-label="Warianty trasy">
+                <span className="route-alternatives-label">Warianty trasy</span>
+                <div className="route-alternative-list">
+                  {this.state.routeAlternatives.map((routeOption: any, index: number) => (
+                    <button
+                      className={`route-alternative${this.state.selectedRouteIndex === index ? ' is-active' : ''}`}
+                      key={index}
+                      type="button"
+                      onClick={() => this.selectRouteAlternative(index)}
+                      aria-pressed={this.state.selectedRouteIndex === index}
+                    >
+                      <strong>{index === 0 ? 'Najszybsza' : `Trasa ${index + 1}`}</strong>
+                      <small>
+                        {`${formatDuration(routeOption.summary.duration)} · ${formatDistance(routeOption.summary.distance)}`}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+            : null}
+        </section>
+        <section className="recent-section">
+          <div className="section-heading">
+            <h2>Ostatnie miejsca</h2>
+            <button
+              type="button"
+              onClick={() => {
+                writeStoredPlaces(PLACE_HISTORY_KEY, []);
+                this.setState({ recentDestinations: [] });
+              }}
+            >
+              Wyczyść
+            </button>
+          </div>
+          {recentDestinations.length > 0
+            ? recentDestinations.map((recentDestination: any) => (
+              <button
+                className="place-card"
+                key={recentDestination.id}
+                type="button"
+                onClick={() => this.selectDestination(recentDestination)}
+              >
+                <span className="place-icon"><Icon name="location" size={18} /></span>
+                <span className="place-copy">
+                  <strong>{recentDestination.name}</strong>
+                  <small>{recentDestination.address}</small>
+                </span>
+                <button
+                  className="favorite-star"
+                  type="button"
+                  onClick={(event) => this.toggleFavorite(recentDestination, event)}
+                  aria-label={this.state.favoritePlaces.some((p: any) => p.id === recentDestination.id) ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}
+                >
+                  <Icon name="star" size={16} />
+                </button>
+                <Icon name="arrow" size={18} />
+              </button>
+            ))
+            : <p className="empty-recent">Wybrane miejsca pojawią się tutaj.</p>}
+        </section>
+        {this.state.favoritePlaces.length > 0
+          ? (
+            <section className="recent-section">
+              <div className="section-heading">
+                <h2>Ulubione</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    writeStoredPlaces(FAVORITE_PLACES_KEY, []);
+                    this.setState({ favoritePlaces: [] });
+                  }}
+                >
+                  Wyczyść
+                </button>
+              </div>
+              {this.state.favoritePlaces.map((fav: any) => (
+                <button
+                  className="place-card"
+                  key={fav.id}
+                  type="button"
+                  onClick={() => this.selectDestination(fav)}
+                >
+                  <span className="place-icon"><Icon name="star" size={18} /></span>
+                  <span className="place-copy">
+                    <strong>{fav.name}</strong>
+                    <small>{fav.address}</small>
+                  </span>
+                  <button
+                    className="favorite-star is-active"
+                    type="button"
+                    onClick={(event) => this.toggleFavorite(fav, event)}
+                    aria-label="Usuń z ulubionych"
+                  >
+                    <Icon name="star" size={16} />
+                  </button>
+                  <Icon name="arrow" size={18} />
+                </button>
+              ))}
+            </section>
           )
-          : null
-      ),
-      h('section', { className: 'recent-section' },
-        h('div', { className: 'section-heading' },
-          h('h2', null, 'Ostatnie miejsca'),
-          h('button', {
-            type: 'button',
-            onClick: () => {
-              writeStoredPlaces(PLACE_HISTORY_KEY, []);
-              this.setState({ recentDestinations: [] });
-            }
-          }, 'Wyczyść')
-        ),
-        recentDestinations.length > 0
-          ? recentDestinations.map((recentDestination) => h('button', {
-            className: 'place-card',
-            key: recentDestination.id,
-            type: 'button',
-            onClick: () => this.selectDestination(recentDestination)
-          },
-          h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
-          h('span', { className: 'place-copy' },
-            h('strong', null, recentDestination.name),
-            h('small', null, recentDestination.address)
-          ),
-          h('button', {
-            className: 'favorite-star',
-            type: 'button',
-            onClick: (event) => this.toggleFavorite(recentDestination, event),
-            'aria-label': this.state.favoritePlaces.some((p) => p.id === recentDestination.id) ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'
-          }, h(Icon, { name: 'star', size: 16 })),
-          h(Icon, { name: 'arrow', size: 18 })
-          ))
-          : h('p', { className: 'empty-recent' }, 'Wybrane miejsca pojawią się tutaj.')
-      ),
-      this.state.favoritePlaces.length > 0
-        ? h('section', { className: 'recent-section' },
-          h('div', { className: 'section-heading' },
-            h('h2', null, 'Ulubione'),
-            h('button', {
-              type: 'button',
-              onClick: () => {
-                writeStoredPlaces(FAVORITE_PLACES_KEY, []);
-                this.setState({ favoritePlaces: [] });
-              }
-            }, 'Wyczyść')
-          ),
-          this.state.favoritePlaces.map((fav) => h('button', {
-            className: 'place-card',
-            key: fav.id,
-            type: 'button',
-            onClick: () => this.selectDestination(fav)
-          },
-          h('span', { className: 'place-icon' }, h(Icon, { name: 'star', size: 18 })),
-          h('span', { className: 'place-copy' },
-            h('strong', null, fav.name),
-            h('small', null, fav.address)
-          ),
-          h('button', {
-            className: 'favorite-star is-active',
-            type: 'button',
-            onClick: (event) => this.toggleFavorite(fav, event),
-            'aria-label': 'Usuń z ulubionych'
-          }, h(Icon, { name: 'star', size: 16 })),
-          h(Icon, { name: 'arrow', size: 18 })
-          ))
-        )
-        : null,
-      h('section', { className: 'poi-section' },
-        h('div', { className: 'section-heading' },
-          h('h2', null, 'Miejsca w okolicy'),
-          h('button', {
-            type: 'button',
-            onClick: () => this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })
-          }, this.state.poiCategory ? 'Wyczyść' : '')
-        ),
-        h('div', { className: 'poi-grid' },
-          POI_CATEGORIES.map((cat) => h('button', {
-            className: `poi-chip${this.state.poiCategory === cat.id ? ' is-active' : ''}`,
-            key: cat.id,
-            type: 'button',
-            onClick: () => this.state.poiCategory === cat.id
-              ? this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })
-              : this.fetchPois(cat.id)
-          }, cat.label))
-        ),
-        this.state.poiStatus === 'loading'
-          ? h('p', { className: 'poi-status' }, 'Szukam miejsc w Warszawie…')
-          : this.state.poiStatus === 'error'
-            ? h('p', { className: 'poi-status is-error' }, this.state.poiMessage || 'Nie udało się pobrać miejsc.')
-            : this.state.poiResults.length > 0
-              ? h('div', { className: 'poi-results' },
-                  this.state.poiResults.slice(0, 10).map((poi) => h('button', {
-                  className: 'place-card',
-                  key: poi.id,
-                  type: 'button',
-                  onClick: () => this.selectPoiDestination(poi)
-                },
-                h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
-                h('span', { className: 'place-copy' },
-                  h('strong', null, poi.name),
-                  h('small', null, poi.address || 'Warszawa')
-                ),
-                h('button', {
-                  className: 'card-waypoint-btn',
-                  type: 'button',
-                  onClick: (event) => {
-                    event.stopPropagation();
-                    this.addWaypoint(poi);
-                  },
-                  'aria-label': `Dodaj ${poi.name} jako przystanek`
-                }, h(Icon, { name: 'stop', size: 14 })),
-                h(Icon, { name: 'arrow', size: 18 })
-                ))
-              )
-              : this.state.poiCategory
-                ? h('p', { className: 'poi-status' }, 'Brak miejsc w tej kategorii.')
-                : null
-      )
+          : null}
+        <section className="poi-section">
+          <div className="section-heading">
+            <h2>Miejsca w okolicy</h2>
+            <button
+              type="button"
+              onClick={() => this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })}
+            >
+              {this.state.poiCategory ? 'Wyczyść' : ''}
+            </button>
+          </div>
+          <div className="poi-grid">
+            {POI_CATEGORIES.map((cat) => (
+              <button
+                className={`poi-chip${this.state.poiCategory === cat.id ? ' is-active' : ''}`}
+                key={cat.id}
+                type="button"
+                onClick={() => this.state.poiCategory === cat.id
+                  ? this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })
+                  : this.fetchPois(cat.id)}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          {this.state.poiStatus === 'loading'
+            ? <p className="poi-status">Szukam miejsc w Warszawie…</p>
+            : this.state.poiStatus === 'error'
+              ? <p className="poi-status is-error">{this.state.poiMessage || 'Nie udało się pobrać miejsc.'}</p>
+              : this.state.poiResults.length > 0
+                ? (
+                  <div className="poi-results">
+                    {this.state.poiResults.slice(0, 10).map((poi: any) => (
+                      <button
+                        className="place-card"
+                        key={poi.id}
+                        type="button"
+                        onClick={() => this.selectPoiDestination(poi)}
+                      >
+                        <span className="place-icon"><Icon name="location" size={18} /></span>
+                        <span className="place-copy">
+                          <strong>{poi.name}</strong>
+                          <small>{poi.address || 'Warszawa'}</small>
+                        </span>
+                        <button
+                          className="card-waypoint-btn"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            this.addWaypoint(poi);
+                          }}
+                          aria-label={`Dodaj ${poi.name} jako przystanek`}
+                        >
+                          <Icon name="stop" size={14} />
+                        </button>
+                        <Icon name="arrow" size={18} />
+                      </button>
+                    ))}
+                  </div>
+                )
+                : this.state.poiCategory
+                  ? <p className="poi-status">Brak miejsc w tej kategorii.</p>
+                  : null}
+        </section>
+      </div>
     );
   }
 
-  renderNavigationFlow(destination, maneuvers, currentManeuver) {
+  renderNavigationFlow(destination: any, maneuvers: any[], currentManeuver: any) {
     const progress = this.state.tripComplete ? 100 : this.state.routeProgress;
     const visibleManeuvers = maneuvers.slice(this.state.stepIndex, this.state.stepIndex + 3);
 
-    return h('div', { className: 'sidebar-flow navigation-flow' },
-      h('section', { className: 'navigation-overview' },
-        h('p', { className: 'eyebrow' }, this.state.tripComplete
-          ? 'Podróż zakończona'
-          : this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'Nawigacja aktywna'),
-        h('h1', { className: 'navigation-title' }, this.state.tripComplete ? 'Jesteś na miejscu.' : 'Jedziemy.'),
-        h('p', { className: 'intro' }, this.state.tripComplete
-          ? `Dotarłeś do: ${destination.name}.`
-          : this.state.routeStatus === 'loading'
-            ? 'Zjechano z trasy. Wyznaczam nowy przebieg…'
-            : 'GPS śledzi Twoją pozycję i prowadzi po wyznaczonej trasie.'),
-        h('div', { className: 'destination-card' },
-          h('span', { className: 'destination-pin' }, h(Icon, { name: 'location', size: 19 })),
-          h('span', { className: 'place-copy' },
-            h('strong', null, destination.name),
-            h('small', null, destination.address)
-          )
-        ),
-        h('div', { className: 'trip-progress', 'aria-label': `Postęp podróży ${progress}%` },
-          h('span', { style: { width: `${progress}%` } })
-        )
-      ),
-      h('section', { className: 'maneuvers-section' },
-        h('div', { className: 'section-heading' },
-          h('h2', null, this.state.tripComplete ? 'Podsumowanie' : 'Dalsza trasa'),
-          h('span', { className: 'step-counter' }, `${this.state.stepIndex + 1}/${maneuvers.length}`)
-        ),
-        this.state.tripComplete
-          ? h('div', { className: 'arrival-note' },
-            h('strong', null, 'Dobra robota.'),
-            h('p', null, 'Możesz zakończyć nawigację i wybrać kolejne miejsce.')
-          )
-          : visibleManeuvers.map((maneuver, index) => h('div', {
-            className: `maneuver-row${index === 0 ? ' is-current' : ''}`,
-            key: `${maneuver.type}-${this.state.stepIndex + index}`
-          },
-          h('span', { className: 'maneuver-list-icon' }, h(Icon, { name: maneuver.type, size: 20 })),
-          h('span', { className: 'maneuver-copy' },
-            h('strong', null, getSassyInstruction(maneuver, this.state.sassyMode)),
-            h('small', null, maneuver.distance)
-          )
-          )),
-        !this.state.tripComplete
-          ? h('p', { className: 'current-voice-line', 'aria-live': 'polite' },
-            h(Icon, { name: 'mic', size: 15 }),
-            h('span', null, `Teraz: ${getSassyInstruction(currentManeuver, this.state.sassyMode)}`)
-          )
-          : null
-      )
+    return (
+      <div className="sidebar-flow navigation-flow">
+        <section className="navigation-overview">
+          <p className="eyebrow">
+            {this.state.tripComplete
+              ? 'Podróż zakończona'
+              : this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'Nawigacja aktywna'}
+          </p>
+          <h1 className="navigation-title">{this.state.tripComplete ? 'Jesteś na miejscu.' : 'Jedziemy.'}</h1>
+          <p className="intro">
+            {this.state.tripComplete
+              ? `Dotarłeś do: ${destination.name}.`
+              : this.state.routeStatus === 'loading'
+                ? 'Zjechano z trasy. Wyznaczam nowy przebieg…'
+                : 'GPS śledzi Twoją pozycję i prowadzi po wyznaczonej trasie.'}
+          </p>
+          <div className="destination-card">
+            <span className="destination-pin"><Icon name="location" size={19} /></span>
+            <span className="place-copy">
+              <strong>{destination.name}</strong>
+              <small>{destination.address}</small>
+            </span>
+          </div>
+          <div className="trip-progress" aria-label={`Postęp podróży ${progress}%`}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
+        </section>
+        <section className="maneuvers-section">
+          <div className="section-heading">
+            <h2>{this.state.tripComplete ? 'Podsumowanie' : 'Dalsza trasa'}</h2>
+            <span className="step-counter">{`${this.state.stepIndex + 1}/${maneuvers.length}`}</span>
+          </div>
+          {this.state.tripComplete
+            ? (
+              <div className="arrival-note">
+                <strong>Dobra robota.</strong>
+                <p>Możesz zakończyć nawigację i wybrać kolejne miejsce.</p>
+              </div>
+            )
+            : visibleManeuvers.map((maneuver: any, index: number) => (
+              <div
+                className={`maneuver-row${index === 0 ? ' is-current' : ''}`}
+                key={`${maneuver.type}-${this.state.stepIndex + index}`}
+              >
+                <span className="maneuver-list-icon"><Icon name={maneuver.type} size={20} /></span>
+                <span className="maneuver-copy">
+                  <strong>{getSassyInstruction(maneuver, this.state.sassyMode)}</strong>
+                  <small>{maneuver.distance}</small>
+                </span>
+              </div>
+            ))}
+          {!this.state.tripComplete
+            ? (
+              <p className="current-voice-line" aria-live="polite">
+                <Icon name="mic" size={15} />
+                <span>{`Teraz: ${getSassyInstruction(currentManeuver, this.state.sassyMode)}`}</span>
+              </p>
+            )
+            : null}
+        </section>
+      </div>
     );
   }
 
@@ -2446,67 +2556,75 @@ class App extends React.Component {
         ? `Głos gotowy · ${clipCount}/4 nagrane lokalnie`
         : 'Twój głos · 121 komunikatów gotowych';
 
-    return h('button', {
-      className: `voice-card${clipCount > 0 ? ' is-configured' : ''}`,
-      type: 'button',
-      onClick: this.openVoiceStudio,
-      'aria-haspopup': 'dialog'
-    },
-      h('span', { className: 'voice-icon' }, h(Icon, { name: 'mic', size: 21 })),
-      h('span', { className: 'voice-copy' },
-        h('strong', null, 'Twój głos'),
-        h('small', null, statusText)
-      ),
-      h('span', {
-        className: 'status-dot',
-        'aria-label': clipCount > 0 ? 'Głos częściowo skonfigurowany' : 'Nie skonfigurowano'
-      })
+    return (
+      <button
+        className={`voice-card${clipCount > 0 ? ' is-configured' : ''}`}
+        type="button"
+        onClick={this.openVoiceStudio}
+        aria-haspopup="dialog"
+      >
+        <span className="voice-icon"><Icon name="mic" size={21} /></span>
+        <span className="voice-copy">
+          <strong>Twój głos</strong>
+          <small>{statusText}</small>
+        </span>
+        <span
+          className="status-dot"
+          aria-label={clipCount > 0 ? 'Głos częściowo skonfigurowany' : 'Nie skonfigurowano'}
+        />
+      </button>
     );
   }
 
-  renderAppMenu(navigationMode) {
+  renderAppMenu(navigationMode: boolean) {
     if (!this.state.menuOpen) {
       return null;
     }
 
-    return h('nav', { className: 'app-menu', 'aria-label': 'Menu aplikacji' },
-      h('div', { className: 'app-menu-heading' },
-        h('strong', null, 'MojaMapa'),
-        h('small', null, 'Wersja demonstracyjna')
-      ),
-      h('button', { className: 'app-menu-item', type: 'button', onClick: this.openVoiceStudio },
-        h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'mic', size: 18 })),
-        h('span', null,
-          h('strong', null, 'Biblioteka dźwięków'),
-          h('small', null, 'Odsłuchaj wszystkie komunikaty')
-        )
-      ),
-      h('button', { className: 'app-menu-item', type: 'button', onClick: () => this.setState({ settingsOpen: true, menuOpen: false }) },
-        h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'gear', size: 18 })),
-        h('span', null,
-          h('strong', null, 'Ustawienia'),
-          h('small', null, 'Tryb nawigacji, opcje')
-        )
-      ),
-      navigationMode
-        ? h('button', { className: 'app-menu-item', type: 'button', onClick: this.returnToPlanner },
-          h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'stop', size: 17 })),
-          h('span', null,
-            h('strong', null, 'Wróć do planowania'),
-            h('small', null, 'Zakończ bieżącą symulację')
+    return (
+      <nav className="app-menu" aria-label="Menu aplikacji">
+        <div className="app-menu-heading">
+          <strong>MojaMapa</strong>
+          <small>Wersja demonstracyjna</small>
+        </div>
+        <button className="app-menu-item" type="button" onClick={this.openVoiceStudio}>
+          <span className="menu-item-icon"><Icon name="mic" size={18} /></span>
+          <span>
+            <strong>Biblioteka dźwięków</strong>
+            <small>Odsłuchaj wszystkie komunikaty</small>
+          </span>
+        </button>
+        <button className="app-menu-item" type="button" onClick={() => this.setState({ settingsOpen: true, menuOpen: false })}>
+          <span className="menu-item-icon"><Icon name="gear" size={18} /></span>
+          <span>
+            <strong>Ustawienia</strong>
+            <small>Tryb nawigacji, opcje</small>
+          </span>
+        </button>
+        {navigationMode
+          ? (
+            <button className="app-menu-item" type="button" onClick={this.returnToPlanner}>
+              <span className="menu-item-icon"><Icon name="stop" size={17} /></span>
+              <span>
+                <strong>Wróć do planowania</strong>
+                <small>Zakończ bieżącą symulację</small>
+              </span>
+            </button>
           )
-        )
-        : h('button', { className: 'app-menu-item', type: 'button', onClick: this.focusDestinationSearch },
-          h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'search', size: 18 })),
-          h('span', null,
-            h('strong', null, 'Wyszukaj miejsce'),
-            h('small', null, 'Przejdź od razu do pola celu')
-          )
-        ),
-      h('div', { className: 'app-menu-note' },
-        h(Icon, { name: 'route', size: 15 }),
-        h('span', null, 'Trasy i czasy są przykładowe. Nagrania pozostają na urządzeniu.')
-      )
+          : (
+            <button className="app-menu-item" type="button" onClick={this.focusDestinationSearch}>
+              <span className="menu-item-icon"><Icon name="search" size={18} /></span>
+              <span>
+                <strong>Wyszukaj miejsce</strong>
+                <small>Przejdź od razu do pola celu</small>
+              </span>
+            </button>
+          )}
+        <div className="app-menu-note">
+          <Icon name="route" size={15} />
+          <span>Trasy i czasy są przykładowe. Nagrania pozostają na urządzeniu.</span>
+        </div>
+      </nav>
     );
   }
 
@@ -2514,43 +2632,47 @@ class App extends React.Component {
     if (!this.state.settingsOpen) {
       return null;
     }
-    return h('div', {
-      className: 'settings-backdrop',
-      role: 'presentation',
-      onMouseDown: (event) => {
-        if (event.target === event.currentTarget) {
-          this.setState({ settingsOpen: false });
-        }
-      }
-    },
-      h('div', { className: 'settings-panel', role: 'dialog', 'aria-label': 'Ustawienia' },
-        h('div', { className: 'settings-header' },
-          h('strong', null, 'Ustawienia'),
-          h('button', {
-            className: 'icon-button',
-            type: 'button',
-            onClick: () => this.setState({ settingsOpen: false }),
-            'aria-label': 'Zamknij ustawienia'
-          }, h(Icon, { name: 'close', size: 20 }))
-        ),
-        h('div', { className: 'settings-body' },
-          h('label', { className: 'settings-row' },
-            h('div', null,
-              h('strong', null, 'Tryb niegrzecznej nawigacji'),
-              h('small', null, 'Zabawne komunikaty zamiast standardowych poleceń')
-            ),
-            h('button', {
-              className: `toggle${this.state.sassyMode ? ' is-on' : ''}`,
-              type: 'button',
-              role: 'switch',
-              'aria-checked': this.state.sassyMode,
-              onClick: () => this.setState((s) => ({ sassyMode: !s.sassyMode }))
-            },
-              h('span', { className: 'toggle-knob' })
-            )
-          )
-        )
-      )
+    return (
+      <div
+        className="settings-backdrop"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            this.setState({ settingsOpen: false });
+          }
+        }}
+      >
+        <div className="settings-panel" role="dialog" aria-label="Ustawienia">
+          <div className="settings-header">
+            <strong>Ustawienia</strong>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => this.setState({ settingsOpen: false })}
+              aria-label="Zamknij ustawienia"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          </div>
+          <div className="settings-body">
+            <label className="settings-row">
+              <div>
+                <strong>Tryb niegrzecznej nawigacji</strong>
+                <small>Zabawne komunikaty zamiast standardowych poleceń</small>
+              </div>
+              <button
+                className={`toggle${this.state.sassyMode ? ' is-on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={this.state.sassyMode}
+                onClick={() => this.setState((s: AppState) => ({ sassyMode: !s.sassyMode }))}
+              >
+                <span className="toggle-knob" />
+              </button>
+            </label>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -2560,161 +2682,196 @@ class App extends React.Component {
     }
 
     const catalog = this.state.voiceCatalog;
-    const categoryLabels = {
+    const categoryLabels: Record<string, string> = {
       maneuver: 'Manewry', arrival: 'Przyjazd', distance: 'Odległości',
       roundabout: 'Ronda', direction: 'Kierunki', status: 'Status',
       route: 'Trasa', safety: 'Bezpieczeństwo', sequence: 'Sekwencje'
     };
 
-    return h('div', {
-      className: 'soundlib-backdrop',
-      role: 'presentation',
-      onMouseDown: (event) => {
-        if (event.target === event.currentTarget) this.closeVoiceStudio();
-      }
-    },
-    h('section', {
-      className: 'soundlib-dialog',
-      role: 'dialog',
-      'aria-modal': 'true',
-      'aria-labelledby': 'soundlib-title',
-      onMouseDown: (event) => event.stopPropagation()
-    },
-    h('header', { className: 'soundlib-header' },
-      h('div', null,
-        h('h2', { id: 'soundlib-title' }, 'Biblioteka dźwięków'),
-        h('p', null, catalog ? `${catalog.clips.length} komunikaty głosowe` : '')
-      ),
-      h('button', {
-        ref: (element) => { this.voiceCloseButton = element; },
-        className: 'soundlib-close',
-        type: 'button',
-        onClick: this.closeVoiceStudio,
-        'aria-label': 'Zamknij'
-      }, h(Icon, { name: 'close', size: 20 }))
-    ),
-    !catalog
-      ? h('p', { className: 'soundlib-loading' }, 'Ładowanie…')
-      : h('div', { className: 'soundlib-groups' },
-        Object.entries(categoryLabels).map(([catKey, catLabel]) => {
-          const clips = catalog.clips.filter((c) => c.category === catKey);
-          if (clips.length === 0) return null;
-          return h('div', { className: 'soundlib-group', key: catKey },
-            h('h3', { className: 'soundlib-group-title' }, `${catLabel} (${clips.length})`),
-            clips.map((clip) => h('div', { className: 'soundlib-row', key: clip.id },
-              h('span', { className: 'soundlib-copy' },
-                h('strong', null, clip.text),
-                h('small', null, clip.id)
-              ),
-              h('button', {
-                className: 'soundlib-play',
-                type: 'button',
-                onClick: () => this.playVoiceClip(clip.id).catch(() => {}),
-                'aria-label': `Odtwórz: ${clip.text}`
-              }, h(Icon, { name: 'play', size: 16 }))
-            ))
-          );
-        })
-      ),
-    this.state.voiceMessage
-      ? h('p', { className: 'soundlib-message', role: 'status' }, this.state.voiceMessage)
-      : null
-    ));
+    return (
+      <div
+        className="soundlib-backdrop"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) this.closeVoiceStudio();
+        }}
+      >
+        <section
+          className="soundlib-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="soundlib-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <header className="soundlib-header">
+            <div>
+              <h2 id="soundlib-title">Biblioteka dźwięków</h2>
+              <p>{catalog ? `${catalog.clips.length} komunikaty głosowe` : ''}</p>
+            </div>
+            <button
+              ref={(element) => { this.voiceCloseButton = element as HTMLButtonElement; }}
+              className="soundlib-close"
+              type="button"
+              onClick={this.closeVoiceStudio}
+              aria-label="Zamknij"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          </header>
+          {!catalog
+            ? <p className="soundlib-loading">Ładowanie…</p>
+            : (
+              <div className="soundlib-groups">
+                {Object.entries(categoryLabels).map(([catKey, catLabel]) => {
+                  const clips = catalog.clips.filter((c: any) => c.category === catKey);
+                  if (clips.length === 0) return null;
+                  return (
+                    <div className="soundlib-group" key={catKey}>
+                      <h3 className="soundlib-group-title">{`${catLabel} (${clips.length})`}</h3>
+                      {clips.map((clip: any) => (
+                        <div className="soundlib-row" key={clip.id}>
+                          <span className="soundlib-copy">
+                            <strong>{clip.text}</strong>
+                            <small>{clip.id}</small>
+                          </span>
+                          <button
+                            className="soundlib-play"
+                            type="button"
+                            onClick={() => this.playVoiceClip(clip.id).catch(() => {})}
+                            aria-label={`Odtwórz: ${clip.text}`}
+                          >
+                            <Icon name="play" size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          {this.state.voiceMessage
+            ? <p className="soundlib-message" role="status">{this.state.voiceMessage}</p>
+            : null}
+        </section>
+      </div>
+    );
   }
 
-  renderMapFooter(destination, maneuvers) {
+  renderMapFooter(destination: any, maneuvers: any[]) {
     if (this.state.clickedLocation) {
-      return h('div', { className: 'route-summary map-click-confirm' },
-        h('div', null,
-          h('span', { className: 'summary-label' }, this.state.clickedLocationStatus === 'loading'
-            ? 'Sprawdzam miejsce…'
-            : 'Kliknięto na mapie'),
-          h('strong', null, this.state.clickedLocationStatus === 'loading'
-            ? '…'
-            : this.state.clickedLocationName),
-          h('small', null, 'Wybierz poniżej, aby ustawić jako cel')
-        ),
-        h('div', { className: 'control-buttons' },
-          h('button', {
-            className: 'secondary-control',
-            type: 'button',
-            onClick: () => this.setMapStartPoint(),
-            disabled: this.state.clickedLocationStatus === 'loading',
-            'aria-label': 'Ustaw jako punkt startowy'
-          },
-            h(Icon, { name: 'route', size: 16 }),
-            h('span', null, 'Start')
-          ),
-          h('button', {
-            className: 'primary-button',
-            type: 'button',
-            onClick: () => this.confirmMapLocation(),
-            disabled: this.state.clickedLocationStatus === 'loading'
-          },
-            h('span', null, 'Jedź tutaj'),
-            h(Icon, { name: 'arrow', size: 17 })
-          ),
-          h('button', {
-            className: 'secondary-control',
-            type: 'button',
-            onClick: () => this.addMapLocationAsWaypoint(),
-            disabled: this.state.clickedLocationStatus === 'loading',
-            'aria-label': 'Dodaj jako przystanek'
-          },
-            h(Icon, { name: 'stop', size: 16 }),
-            h('span', null, 'Przystanek')
-          ),
-          h('button', {
-            className: 'secondary-control danger-control',
-            type: 'button',
-            onClick: () => this.cancelMapClick(),
-            'aria-label': 'Anuluj'
-          }, h(Icon, { name: 'close', size: 17 }))
-        )
+      return (
+        <div className="route-summary map-click-confirm">
+          <div>
+            <span className="summary-label">
+              {this.state.clickedLocationStatus === 'loading'
+                ? 'Sprawdzam miejsce…'
+                : 'Kliknięto na mapie'}
+            </span>
+            <strong>
+              {this.state.clickedLocationStatus === 'loading'
+                ? '…'
+                : this.state.clickedLocationName}
+            </strong>
+            <small>Wybierz poniżej, aby ustawić jako cel</small>
+          </div>
+          <div className="control-buttons">
+            <button
+              className="secondary-control"
+              type="button"
+              onClick={() => this.setMapStartPoint()}
+              disabled={this.state.clickedLocationStatus === 'loading'}
+              aria-label="Ustaw jako punkt startowy"
+            >
+              <Icon name="route" size={16} />
+              <span>Start</span>
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => this.confirmMapLocation()}
+              disabled={this.state.clickedLocationStatus === 'loading'}
+            >
+              <span>Jedź tutaj</span>
+              <Icon name="arrow" size={17} />
+            </button>
+            <button
+              className="secondary-control"
+              type="button"
+              onClick={() => this.addMapLocationAsWaypoint()}
+              disabled={this.state.clickedLocationStatus === 'loading'}
+              aria-label="Dodaj jako przystanek"
+            >
+              <Icon name="stop" size={16} />
+              <span>Przystanek</span>
+            </button>
+            <button
+              className="secondary-control danger-control"
+              type="button"
+              onClick={() => this.cancelMapClick()}
+              aria-label="Anuluj"
+            >
+              <Icon name="close" size={17} />
+            </button>
+          </div>
+        </div>
       );
     }
 
     if (this.state.tripComplete) {
-      return h('div', { className: 'route-summary arrival-summary' },
-        h('div', null,
-          h('span', { className: 'summary-label' }, 'Podróż zakończona'),
-          h('strong', null, destination.name),
-          h('small', null, `${destination.distance} · dotarłeś do celu`)
-        ),
-        h('button', { className: 'primary-button', type: 'button', onClick: this.stopNavigation },
-          h('span', null, 'Zakończ'),
-          h(Icon, { name: 'stop', size: 17 })
-        )
+      return (
+        <div className="route-summary arrival-summary">
+          <div>
+            <span className="summary-label">Podróż zakończona</span>
+            <strong>{destination.name}</strong>
+            <small>{`${destination.distance} · dotarłeś do celu`}</small>
+          </div>
+          <button className="primary-button" type="button" onClick={this.stopNavigation}>
+            <span>Zakończ</span>
+            <Icon name="stop" size={17} />
+          </button>
+        </div>
       );
     }
 
     if (this.state.navigationActive) {
       const remainingDuration = this.state.remainingDuration;
       const remainingDistance = this.state.remainingDistance;
-      return h('div', { className: 'route-summary navigation-controls' },
-        h('div', null,
-          h('span', { className: 'summary-label' }, this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'W drodze'),
-          h('strong', null, remainingDuration === null || remainingDistance === null
-            ? 'Obliczam pozostały czas…'
-            : `${formatDuration(remainingDuration)} · ${formatDistance(remainingDistance)}`),
-          h('small', null, remainingDuration === null
-            ? destination.name
-            : `Przyjazd około ${formatArrivalTime(remainingDuration)} · ${destination.name}`)
-        ),
-        h('div', { className: 'control-buttons' },
-          h('button', {
-            className: 'secondary-control',
-            type: 'button',
-            onClick: this.toggleNavigationPause,
-            'aria-label': this.state.navigationPaused ? 'Wznów nawigację' : 'Wstrzymaj nawigację'
-          }, h(Icon, { name: this.state.navigationPaused ? 'play' : 'pause', size: 19 })),
-          h('button', {
-            className: 'secondary-control danger-control',
-            type: 'button',
-            onClick: this.stopNavigation,
-            'aria-label': 'Zakończ nawigację'
-          }, h(Icon, { name: 'stop', size: 17 }))
-        )
+      return (
+        <div className="route-summary navigation-controls">
+          <div>
+            <span className="summary-label">
+              {this.state.navigationPaused ? 'Nawigacja wstrzymana' : 'W drodze'}
+            </span>
+            <strong>
+              {remainingDuration === null || remainingDistance === null
+                ? 'Obliczam pozostały czas…'
+                : `${formatDuration(remainingDuration)} · ${formatDistance(remainingDistance)}`}
+            </strong>
+            <small>
+              {remainingDuration === null
+                ? destination.name
+                : `Przyjazd około ${formatArrivalTime(remainingDuration)} · ${destination.name}`}
+            </small>
+          </div>
+          <div className="control-buttons">
+            <button
+              className="secondary-control"
+              type="button"
+              onClick={this.toggleNavigationPause}
+              aria-label={this.state.navigationPaused ? 'Wznów nawigację' : 'Wstrzymaj nawigację'}
+            >
+              <Icon name={this.state.navigationPaused ? 'play' : 'pause'} size={19} />
+            </button>
+            <button
+              className="secondary-control danger-control"
+              type="button"
+              onClick={this.stopNavigation}
+              aria-label="Zakończ nawigację"
+            >
+              <Icon name="stop" size={17} />
+            </button>
+          </div>
+        </div>
       );
     }
 
@@ -2728,35 +2885,43 @@ class App extends React.Component {
       this.state.avoidedFeatures.includes('ferries') ? 'bez promów' : null
     ].filter(Boolean).join(' · ');
 
-    return h('div', { className: 'route-summary' },
-      this.state.startLocation
-        ? h('div', { className: 'start-point-row' },
-            h('span', { className: 'start-point-label' }, 'Punkt startowy'),
-            h('span', null, this.state.startLocationName || `${this.state.startLocation[1].toFixed(5)}, ${this.state.startLocation[0].toFixed(5)}`),
-            h('button', {
-              className: 'clear-start',
-              type: 'button',
-              onClick: this.clearStartPoint,
-              'aria-label': 'Usuń punkt startowy'
-            }, h(Icon, { name: 'close', size: 12 }))
+    return (
+      <div className="route-summary">
+        {this.state.startLocation
+          ? (
+            <div className="start-point-row">
+              <span className="start-point-label">Punkt startowy</span>
+              <span>{this.state.startLocationName || `${(this.state.startLocation as [number, number])[1].toFixed(5)}, ${(this.state.startLocation as [number, number])[0].toFixed(5)}`}</span>
+              <button
+                className="clear-start"
+                type="button"
+                onClick={this.clearStartPoint}
+                aria-label="Usuń punkt startowy"
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </div>
           )
-        : null,
-      h('div', null,
-        h('span', { className: 'summary-label' }, destination.name),
-        h('strong', null, this.state.routeStatus === 'loading' ? 'Wyznaczam…' : destination.time),
-        h('small', null, this.state.routeStatus === 'error'
-          ? this.state.routeMessage
-          : `${destination.distance} · ${routeDescription}`)
-      ),
-      h('button', {
-        className: 'primary-button',
-        type: 'button',
-        onClick: this.startNavigation,
-        disabled: this.state.routeStatus !== 'ready'
-      },
-        h('span', null, 'Rozpocznij'),
-        h(Icon, { name: 'arrow', size: 18 })
-      )
+          : null}
+        <div>
+          <span className="summary-label">{destination.name}</span>
+          <strong>{this.state.routeStatus === 'loading' ? 'Wyznaczam…' : destination.time}</strong>
+          <small>
+            {this.state.routeStatus === 'error'
+              ? this.state.routeMessage
+              : `${destination.distance} · ${routeDescription}`}
+          </small>
+        </div>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={this.startNavigation}
+          disabled={this.state.routeStatus !== 'ready'}
+        >
+          <span>Rozpocznij</span>
+          <Icon name="arrow" size={18} />
+        </button>
+      </div>
     );
   }
 
@@ -2776,43 +2941,50 @@ class App extends React.Component {
       ? this.state.searchResults
       : localMatches;
 
-    return h('div', { className: 'search-results', role: 'listbox', 'aria-label': 'Podpowiedzi miejsc' },
-      h('div', { className: 'search-results-label' },
-        normalizedQuery ? 'Wyniki wyszukiwania' : 'Popularne w pobliżu'),
-      waitingForRemoteResults
-        ? h('p', { className: 'empty-results', role: 'status' }, 'Szukam miejsc…')
-        : this.state.searchStatus === 'error'
-          ? h('p', { className: 'empty-results is-error', role: 'status' }, this.state.searchMessage)
-          : matches.length > 0
-        ? matches.map((destination) => h('div', {
-          className: 'search-result-row',
-          key: destination.id
-        },
-        h('button', {
-          className: 'search-result',
-          type: 'button',
-          role: 'option',
-          onMouseDown: (event) => event.preventDefault(),
-          onClick: () => this.selectDestination(destination)
-        },
-        h('span', { className: 'place-icon' }, h(Icon, { name: 'location', size: 18 })),
-        h('span', { className: 'place-copy' },
-          h('strong', null, destination.name),
-          h('small', null, `${destination.address} · ${destination.district}`)
-        ),
-        h('span', { className: 'result-time' }, destination.isSearchResult ? 'Wybierz' : destination.time)
-        ),
-        h('button', {
-          className: 'search-result-waypoint',
-          type: 'button',
-          onClick: (event) => {
-            event.preventDefault();
-            this.addWaypoint(destination);
-          },
-          'aria-label': `Dodaj jako przystanek: ${destination.name}`
-        }, h(Icon, { name: 'plus', size: 14 }))
-        ))
-            : h('p', { className: 'empty-results' }, this.state.searchMessage || 'Nie znaleźliśmy takiego miejsca.')
+    return (
+      <div className="search-results" role="listbox" aria-label="Podpowiedzi miejsc">
+        <div className="search-results-label">
+          {normalizedQuery ? 'Wyniki wyszukiwania' : 'Popularne w pobliżu'}
+        </div>
+        {waitingForRemoteResults
+          ? <p className="empty-results" role="status">Szukam miejsc…</p>
+          : this.state.searchStatus === 'error'
+            ? <p className="empty-results is-error" role="status">{this.state.searchMessage}</p>
+            : matches.length > 0
+              ? matches.map((destination: any) => (
+                <div
+                  className="search-result-row"
+                  key={destination.id}
+                >
+                  <button
+                    className="search-result"
+                    type="button"
+                    role="option"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => this.selectDestination(destination)}
+                  >
+                    <span className="place-icon"><Icon name="location" size={18} /></span>
+                    <span className="place-copy">
+                      <strong>{destination.name}</strong>
+                      <small>{`${destination.address} · ${destination.district}`}</small>
+                    </span>
+                    <span className="result-time">{destination.isSearchResult ? 'Wybierz' : destination.time}</span>
+                  </button>
+                  <button
+                    className="search-result-waypoint"
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      this.addWaypoint(destination);
+                    }}
+                    aria-label={`Dodaj jako przystanek: ${destination.name}`}
+                  >
+                    <Icon name="plus" size={14} />
+                  </button>
+                </div>
+              ))
+              : <p className="empty-results">{this.state.searchMessage || 'Nie znaleźliśmy takiego miejsca.'}</p>}
+      </div>
     );
   }
 
@@ -2843,73 +3015,76 @@ class App extends React.Component {
     const navigationMode = navigationActive || tripComplete;
     const navigationNotice = !networkOnline
       ? {
-        icon: 'route',
+        icon: 'route' as const,
         text: 'Brak internetu — nowa trasa będzie dostępna po odzyskaniu połączenia.'
       }
       : gpsSignal === 'lost'
-        ? { icon: 'location', text: 'Brak sygnału GPS — próbuję odzyskać pozycję.' }
+        ? { icon: 'location' as const, text: 'Brak sygnału GPS — próbuję odzyskać pozycję.' }
         : gpsSignal === 'weak'
-          ? { icon: 'location', text: 'Słaby sygnał GPS — pozycja może być niedokładna.' }
+          ? { icon: 'location' as const, text: 'Słaby sygnał GPS — pozycja może być niedokładna.' }
           : null;
 
-    return h('main', { className: `app-shell${navigationMode ? ' is-navigating' : ''}` },
-      h('aside', { className: 'sidebar' },
-        h('header', { className: 'brand-row' },
-          h('a', { className: 'brand', href: '#', 'aria-label': 'MojaMapa — strona główna' },
-            h('span', { className: 'brand-mark' }, h(Icon, { name: 'route', size: 23 })),
-            h('span', null, 'MojaMapa')
-          ),
-          h('div', {
-            className: 'menu-container',
-            ref: (element) => { this.menuContainer = element; }
-          },
-          h('button', {
-            className: `icon-button${menuOpen ? ' is-active' : ''}`,
-            type: 'button',
-            onClick: () => this.setState({ menuOpen: !menuOpen }),
-            'aria-label': menuOpen ? 'Zamknij menu' : 'Otwórz menu',
-            'aria-expanded': menuOpen
-          }, h(Icon, { name: menuOpen ? 'close' : 'menu' })),
-          this.renderAppMenu(navigationMode)
-          )
-        ),
-        navigationMode
-          ? this.renderNavigationFlow(destination, maneuvers, currentManeuver)
-          : this.renderPlannerFlow(query, recentDestinations, searchOpen),
-        this.renderVoiceCard()
-      ),
-      h('section', { className: 'map-region' },
-        h(MapCanvas, {
-          destination,
-          navigationActive,
-          currentManeuver,
-          tripComplete,
-          locationStatus,
-          navigationNotice: navigationActive ? navigationNotice : null,
-          userCoordinates,
-          route,
-          mapZoom,
-          mapStyle: this.state.mapStyle,
-          poiResults: this.state.poiResults,
-          onZoomIn: () => this.adjustMapZoom(0.15),
-          onZoomOut: () => this.adjustMapZoom(-0.15),
-          onResetMap: this.resetMapView,
-          onMapStyleChange: this.toggleMapStyle,
-          onMapDimToggle: this.toggleMapDim,
-          mapDimmed: this.state.mapDimmed,
-          onPoiSelect: (poi) => this.selectPoiDestination(poi),
-          onMapClick: this.handleMapClick,
-          clickedLocation: this.state.clickedLocation,
-          startLocation: this.state.startLocation,
-          waypoints: this.state.waypoints
-        }),
-        this.renderMapFooter(destination, maneuvers)
-      ),
-      this.renderSettingsPanel(),
-      this.renderVoiceStudio()
+    return (
+      <main className={`app-shell${navigationMode ? ' is-navigating' : ''}`}>
+        <aside className="sidebar">
+          <header className="brand-row">
+            <a className="brand" href="#" aria-label="MojaMapa — strona główna">
+              <span className="brand-mark"><Icon name="route" size={23} /></span>
+              <span>MojaMapa</span>
+            </a>
+            <div
+              className="menu-container"
+              ref={(element) => { this.menuContainer = element as HTMLDivElement; }}
+            >
+              <button
+                className={`icon-button${menuOpen ? ' is-active' : ''}`}
+                type="button"
+                onClick={() => this.setState({ menuOpen: !menuOpen })}
+                aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+                aria-expanded={menuOpen}
+              >
+                <Icon name={menuOpen ? 'close' : 'menu'} />
+              </button>
+              {this.renderAppMenu(navigationMode)}
+            </div>
+          </header>
+          {navigationMode
+            ? this.renderNavigationFlow(destination, maneuvers, currentManeuver)
+            : this.renderPlannerFlow(query, recentDestinations, searchOpen)}
+          {this.renderVoiceCard()}
+        </aside>
+        <section className="map-region">
+          <MapCanvas
+            destination={destination}
+            navigationActive={navigationActive}
+            currentManeuver={currentManeuver}
+            tripComplete={tripComplete}
+            locationStatus={locationStatus}
+            navigationNotice={navigationActive ? navigationNotice : null}
+            userCoordinates={userCoordinates}
+            route={route}
+            mapZoom={mapZoom}
+            mapStyle={this.state.mapStyle}
+            poiResults={this.state.poiResults}
+            onZoomIn={() => this.adjustMapZoom(0.15)}
+            onZoomOut={() => this.adjustMapZoom(-0.15)}
+            onResetMap={this.resetMapView}
+            onMapStyleChange={this.toggleMapStyle}
+            onMapDimToggle={this.toggleMapDim}
+            mapDimmed={this.state.mapDimmed}
+            onPoiSelect={(poi) => this.selectPoiDestination(poi)}
+            onMapClick={this.handleMapClick}
+            clickedLocation={this.state.clickedLocation}
+            startLocation={this.state.startLocation}
+            waypoints={this.state.waypoints}
+          />
+          {this.renderMapFooter(destination, maneuvers)}
+        </section>
+        {this.renderSettingsPanel()}
+        {this.renderVoiceStudio()}
+      </main>
     );
   }
-
 }
 
-ReactDOM.render(h(App), document.getElementById('root'));
+export default App;
