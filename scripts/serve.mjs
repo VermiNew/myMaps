@@ -237,7 +237,14 @@ async function handlePois(requestUrl, response) {
 
 createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host}`);
-  const pathname = decodeURIComponent(requestUrl.pathname);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(requestUrl.pathname);
+  } catch {
+    response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end('Nieprawidłowe kodowanie URL.');
+    return;
+  }
   if (pathname === '/api/geocode') {
     await handleGeocoding(requestUrl, response);
     return;

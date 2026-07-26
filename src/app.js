@@ -1371,13 +1371,16 @@ class App extends React.Component {
           category: props.category_ids?.[0] || categoryId
         };
       });
-      this.setState({ poiResults: pois, poiStatus: 'ready' });
+      this.setState({ poiResults: pois, poiStatus: 'ready', poiMessage: '' });
     } catch (error) {
       this.setState({ poiStatus: 'error', poiMessage: error.message });
     }
   }
 
   async handleMapClick(coordinates) {
+    if (this.state.navigationActive || this.state.tripComplete) {
+      return;
+    }
     this.setState({
       clickedLocation: coordinates,
       clickedLocationName: '',
