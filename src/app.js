@@ -567,7 +567,10 @@ class MapCanvas extends React.Component {
       const style = MAP_STYLES[this.props.mapStyle] || MAP_STYLES[DEFAULT_MAP_STYLE];
       this.map.setStyle(style);
       this.map.once('style.load', () => {
+        this.updateMarkers();
         this.updateRoute();
+        this.updatePoiMarkers();
+        this.updateStartMarker();
       });
       return;
     }
