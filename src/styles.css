@@ -456,6 +456,10 @@ h1 {
   margin: 4px 10px 10px;
 }
 
+.empty-results.is-error {
+  color: #9b5b57;
+}
+
 .empty-recent {
   margin: 18px 8px;
 }
