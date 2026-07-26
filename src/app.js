@@ -1371,12 +1371,16 @@ class App extends React.Component {
     const userCoordinates = readPosition(position);
     const gpsSignal = userCoordinates.accuracy > 80 ? 'weak' : 'good';
     const previousGpsSignal = this.state.gpsSignal;
+    const wasLocationUnknown = this.state.userCoordinates === null;
     this.setState({
       locationStatus: 'ready',
       locationMessage: `Dokładność około ${Math.round(userCoordinates.accuracy)} m`,
       gpsSignal,
       userCoordinates
     }, () => {
+      if (wasLocationUnknown && !this.state.startLocation && this.state.destination && this.state.routeStatus === 'ready') {
+        this.calculateRoute(userCoordinates);
+      }
       if (this.state.navigationActive && previousGpsSignal === 'lost') {
         this.playVoiceClip('gps_restored').catch(() => {});
       } else if (this.state.navigationActive && gpsSignal === 'weak' && previousGpsSignal === 'good') {
