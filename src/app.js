@@ -2063,7 +2063,17 @@ class App extends React.Component {
               onFocus: () => this.setState({ searchOpen: true }),
               onChange: this.handleSearchChange
             }),
-            h('kbd', null, '⌘ K')
+            query
+              ? h('button', {
+                className: 'search-clear',
+                type: 'button',
+                onClick: () => {
+                  this.setState({ query: '', searchOpen: false, searchResults: [], searchStatus: 'idle', searchMessage: '' });
+                  this.searchInput?.focus();
+                },
+                'aria-label': 'Wyczyść wyszukiwanie'
+              }, h(Icon, { name: 'close', size: 17 }))
+              : h('kbd', null, '⌘ K')
           ),
           searchOpen ? this.renderSearchResults() : null
         ),

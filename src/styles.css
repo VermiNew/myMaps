@@ -527,6 +527,24 @@ kbd {
   font-size: 11px;
 }
 
+.search-clear {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #8a929c;
+  background: #f0f2ef;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.search-clear:hover {
+  color: var(--ink);
+  background: #e4e7e4;
+}
+
 .location-button {
   gap: 10px;
   margin-top: 13px;
