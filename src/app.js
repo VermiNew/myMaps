@@ -899,7 +899,7 @@ class App extends React.Component {
       poiCategory: null,
       poiResults: [],
       poiStatus: 'idle',
-      mapPoiMarkers: [],
+      poiMessage: '',
       clickedLocation: null,
       clickedLocationName: '',
       clickedLocationStatus: 'idle'
@@ -2478,7 +2478,6 @@ class App extends React.Component {
         h(MapCanvas, {
           destination,
           navigationActive,
-          stepIndex,
           currentManeuver,
           tripComplete,
           locationStatus,
