@@ -5,3 +5,5 @@ node_modules/
 *.log
 artifacts/
 .vercel/
+
+test-results/
