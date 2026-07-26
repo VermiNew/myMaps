@@ -1,16 +1,21 @@
-const openRouteServiceApiKey = process.env.OPENROUTESERVICE_API_KEY;
-
-const ROUTE_PROFILES = {
-  car: 'driving-car',
-  bicycle: 'cycling-regular',
-  foot: 'foot-walking'
+const osrmProfiles = {
+  car: 'driving',
+  bicycle: 'cycling',
+  foot: 'walking'
 };
 
-const ALLOWED_AVOID_FEATURES = {
-  car: new Set(['tollways', 'highways', 'ferries']),
-  bicycle: new Set(['ferries']),
-  foot: new Set(['ferries'])
+const poiCategoryTags = {
+  100: { amenity: 'restaurant' },
+  102: { amenity: 'cafe' },
+  103: { amenity: 'bar' },
+  301: { amenity: 'fuel' },
+  300: { amenity: 'parking' },
+  401: { amenity: 'pharmacy' },
+  400: { amenity: 'hospital' },
+  900: { amenity: 'atm' }
 };
+
+let lastNominatimCall = 0;
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
@@ -25,45 +30,60 @@ function sendPlain(res, status, text) {
   res.end(text);
 }
 
-function readCoordinates(value) {
-  const coords = value?.split(',').map(Number);
-  return coords?.length === 2 && coords.every(Number.isFinite) ? coords : null;
+function readCoords(value) {
+  const c = value?.split(',').map(Number);
+  return c?.length === 2 && c.every(Number.isFinite) ? c : null;
 }
 
-function apiKeyGuard(res) {
-  if (!openRouteServiceApiKey) {
-    sendJson(res, 503, { error: 'Usługa nie została skonfigurowana.' });
-    return false;
-  }
-  return true;
+async function nominatimFetch(url) {
+  const now = Date.now();
+  const wait = Math.max(0, 1100 - (now - lastNominatimCall));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastNominatimCall = Date.now();
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'MojaMapa/1.0', 'Referer': 'https://my-maps.vercel.app' }
+  });
+  return res;
 }
 
 async function handleGeocode(url, res) {
-  if (!apiKeyGuard(res)) return;
   const text = url.searchParams.get('text')?.trim();
   if (!text || text.length < 3) {
     sendJson(res, 400, { error: 'Wpisz co najmniej 3 znaki.' });
     return;
   }
   try {
-    const upstream = new URL('https://api.openrouteservice.org/geocode/search');
-    upstream.searchParams.set('text', text);
-    upstream.searchParams.set('size', '6');
-    upstream.searchParams.set('boundary.country', 'PL');
-    upstream.searchParams.set('lang', 'pl');
-    const upstreamRes = await fetch(upstream, {
-      headers: { Authorization: openRouteServiceApiKey, 'User-Agent': 'MojaMapa/1.0' }
-    });
-    const payload = await upstreamRes.json();
-    sendJson(res, upstreamRes.ok ? 200 : upstreamRes.status,
-      upstreamRes.ok ? payload : { error: 'Wyszukiwanie jest chwilowo niedostępne.' });
+    const u = new URL('https://nominatim.openstreetmap.org/search');
+    u.searchParams.set('q', text);
+    u.searchParams.set('format', 'jsonv2');
+    u.searchParams.set('limit', '6');
+    u.searchParams.set('accept-language', 'pl');
+    u.searchParams.set('countrycodes', 'pl');
+    const upstreamRes = await nominatimFetch(u);
+    const data = await upstreamRes.json();
+    if (!upstreamRes.ok) {
+      sendJson(res, 502, { error: 'Wyszukiwanie jest chwilowo niedostępne.' });
+      return;
+    }
+    const features = (data || []).map((item) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [Number(item.lon), Number(item.lat)] },
+      properties: {
+        gid: `nominatim-${item.osm_type}-${item.osm_id}`,
+        name: item.name || item.display_name?.split(',')[0] || '',
+        label: item.display_name || '',
+        locality: item.city || item.town || item.village || item.county || 'Polska',
+        street: item.address?.road || '',
+        housenumber: item.address?.house_number || ''
+      }
+    }));
+    sendJson(res, 200, { features, type: 'FeatureCollection' });
   } catch {
     sendJson(res, 502, { error: 'Nie udało się połączyć z wyszukiwarką miejsc.' });
   }
 }
 
 async function handleReverseGeocode(url, res) {
-  if (!apiKeyGuard(res)) return;
   const lat = url.searchParams.get('lat');
   const lng = url.searchParams.get('lng');
   if (!lat || !lng || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
@@ -71,98 +91,186 @@ async function handleReverseGeocode(url, res) {
     return;
   }
   try {
-    const upstream = new URL('https://api.openrouteservice.org/geocode/reverse');
-    upstream.searchParams.set('point.lat', lat);
-    upstream.searchParams.set('point.lon', lng);
-    upstream.searchParams.set('size', '1');
-    upstream.searchParams.set('lang', 'pl');
-    const upstreamRes = await fetch(upstream, {
-      headers: { Authorization: openRouteServiceApiKey, 'User-Agent': 'MojaMapa/1.0' }
-    });
-    const payload = await upstreamRes.json();
-    sendJson(res, upstreamRes.ok ? 200 : upstreamRes.status,
-      upstreamRes.ok ? payload : { error: 'Geokodowanie jest chwilowo niedostępne.' });
+    const u = new URL('https://nominatim.openstreetmap.org/reverse');
+    u.searchParams.set('lat', lat);
+    u.searchParams.set('lon', lng);
+    u.searchParams.set('format', 'jsonv2');
+    u.searchParams.set('accept-language', 'pl');
+    u.searchParams.set('zoom', '18');
+    const upstreamRes = await nominatimFetch(u);
+    const data = await upstreamRes.json();
+    if (!upstreamRes.ok || data.error) {
+      sendJson(res, 502, { error: 'Geokodowanie jest chwilowo niedostępne.' });
+      return;
+    }
+    const props = data.address || {};
+    const features = [{
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [Number(data.lon || lng), Number(data.lat || lat)] },
+      properties: {
+        name: data.name || props.road || props.hamlet || props.city || 'Wybrane miejsce',
+        label: data.display_name || '',
+        locality: props.city || props.town || props.village || props.county || 'Polska',
+        street: props.road || '',
+        housenumber: props.house_number || ''
+      }
+    }];
+    sendJson(res, 200, { features, type: 'FeatureCollection' });
   } catch {
     sendJson(res, 502, { error: 'Nie udało się połączyć z usługą geokodowania.' });
   }
 }
 
+function osrmManeuverType(type, modifier) {
+  if (type === 'depart') return 1;
+  if (type === 'arrive') return 10;
+  if (type === 'roundabout' || type === 'rotary') return 7;
+  if (type === 'exit roundabout' || type === 'exit rotary') return 8;
+  const modMap = { left: 0, right: 1, 'sharp left': 2, 'sharp right': 3, 'slight left': 4, 'slight right': 5, straight: 6, uturn: 9 };
+  return modMap[modifier] ?? 11;
+}
+
+function buildOsrmUrl(profile, coordinates) {
+  const coordStr = coordinates.map((c) => c.join(',')).join(';');
+  return `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?geometries=geojson&steps=true&overview=full&alternatives=3`;
+}
+
+function osrmInstruction(type, modifier, name, exit) {
+  const street = name || 'niej';
+  if (type === 'depart') return `Kieruj się na ${street}`;
+  if (type === 'arrive') return 'Dotarłeś do celu';
+  if (type === 'roundabout' || type === 'rotary') return exit ? `Wjazd na rondo, ${exit}. zjazd` : 'Wjedź na rondo';
+  if (type === 'exit roundabout' || type === 'exit rotary') return 'Zjazd z ronda';
+  const modPhrases = {
+    'left': `Skręć w lewo w ${street}`,
+    'right': `Skręć w prawo w ${street}`,
+    'sharp left': `Skręć ostro w lewo w ${street}`,
+    'sharp right': `Skręć ostro w prawo w ${street}`,
+    'slight left': `Skręć delikatnie w lewo w ${street}`,
+    'slight right': `Skręć delikatnie w prawo w ${street}`,
+    'straight': `Jedź prosto na ${street}`,
+    'uturn': `Zawróć na ${street}`
+  };
+  if (modPhrases[modifier]) return modPhrases[modifier];
+  return `Kontynuuj na ${street}`;
+}
+
+function buildOsrmStep(step, geometry) {
+  const man = step.maneuver || {};
+  const loc = man.location || [0, 0];
+  let startIdx = 0;
+  for (let i = 0; i < geometry.length; i++) {
+    const g = geometry[i];
+    if (Math.abs(g[0] - loc[0]) < 0.0001 && Math.abs(g[1] - loc[1]) < 0.0001) {
+      startIdx = i;
+      break;
+    }
+  }
+  const endIdx = Math.min(startIdx + Math.max(1, Math.round(geometry.length * step.distance / (step.duration || 1))), geometry.length - 1);
+  const instruction = osrmInstruction(man.type, man.modifier, step.name || step.ref || '', man.exit);
+  return {
+    distance: Math.round(step.distance),
+    duration: Math.round(step.duration),
+    type: osrmManeuverType(man.type, man.modifier),
+    instruction,
+    way_points: [startIdx, endIdx],
+    exit_number: man.exit || 0
+  };
+}
+
+function osrmToOrsRoute(osrmRoute) {
+  const geom = osrmRoute.geometry;
+  const legs = osrmRoute.legs || [];
+  const steps = legs.flatMap((leg) => (leg.steps || []).map((s) => buildOsrmStep(s, geom.coordinates)));
+  const totalDistance = legs.reduce((a, l) => a + l.distance, 0);
+  const totalDuration = legs.reduce((a, l) => a + l.duration, 0);
+  return {
+    type: 'Feature',
+    geometry: geom,
+    properties: {
+      summary: { distance: Math.round(totalDistance), duration: Math.round(totalDuration) },
+      segments: [{ steps, distance: Math.round(totalDistance), duration: Math.round(totalDuration) }],
+      way_points: [0, geom.coordinates.length - 1]
+    }
+  };
+}
+
 async function handleRoute(url, res) {
-  if (!apiKeyGuard(res)) return;
-  const start = readCoordinates(url.searchParams.get('start'));
-  const end = readCoordinates(url.searchParams.get('end'));
+  const start = readCoords(url.searchParams.get('start'));
+  const end = readCoords(url.searchParams.get('end'));
   const rawWaypoints = url.searchParams.get('waypoints');
-  const waypoints = rawWaypoints
-    ? rawWaypoints.split('|').map((w) => readCoordinates(w)).filter(Boolean)
-    : [];
+  const waypoints = rawWaypoints ? rawWaypoints.split('|').map((w) => readCoords(w)).filter(Boolean) : [];
   const mode = url.searchParams.get('mode') || 'car';
-  const profile = ROUTE_PROFILES[mode];
-  const includeAlternatives = mode === 'car' && url.searchParams.get('alternatives') === 'true';
-  const avoidFeatures = (url.searchParams.get('avoid') || '')
-    .split(',').filter((f) => ALLOWED_AVOID_FEATURES[mode]?.has(f));
+  const profile = osrmProfiles[mode];
   if (!start || !end || !profile) {
     sendJson(res, 400, { error: 'Nieprawidłowe parametry trasy.' });
     return;
   }
   try {
-    const body = {
-      coordinates: [start, ...waypoints, end],
-      instructions: true,
-      language: 'pl',
-      ...(avoidFeatures.length > 0 ? { options: { avoid_features: avoidFeatures } } : {}),
-      ...(includeAlternatives ? { alternative_routes: { target_count: 3, weight_factor: 1.4, share_factor: 0.6 } } : {})
-    };
-    const upstreamRes = await fetch(
-      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: openRouteServiceApiKey,
-          'Content-Type': 'application/json',
-          'User-Agent': 'MojaMapa/1.0'
-        },
-        body: JSON.stringify(body)
-      }
-    );
-    const payload = await upstreamRes.json();
-    sendJson(res, upstreamRes.ok ? 200 : upstreamRes.status,
-      upstreamRes.ok ? payload : { error: 'Nie udało się wyznaczyć trasy.' });
+    const coordinates = [start, ...waypoints, end];
+    const upstreamRes = await fetch(buildOsrmUrl(profile, coordinates), {
+      headers: { 'User-Agent': 'MojaMapa/1.0' }
+    });
+    const data = await upstreamRes.json();
+    if (data.code !== 'Ok' || !data.routes?.length) {
+      sendJson(res, 502, { error: 'Nie udało się wyznaczyć trasy.' });
+      return;
+    }
+    const features = data.routes.map(osrmToOrsRoute);
+    sendJson(res, 200, { features, type: 'FeatureCollection', metadata: { provider: 'osrm', attribution: '© OpenStreetMap contributors' } });
   } catch {
     sendJson(res, 502, { error: 'Nie udało się połączyć z usługą tras.' });
   }
 }
 
 async function handlePois(url, res) {
-  if (!apiKeyGuard(res)) return;
-  const categoryId = url.searchParams.get('category');
+  const categoryId = Number(url.searchParams.get('category'));
   const bbox = url.searchParams.get('bbox');
   if (!categoryId || !bbox) {
     sendJson(res, 400, { error: 'Brak wymaganych parametrów.' });
     return;
   }
-  const nums = bbox.split(',').map(Number);
-  if (nums.length !== 4 || nums.some((v) => !Number.isFinite(v))) {
-    sendJson(res, 400, { error: 'Nieprawidłowe współrzędne.' });
+  const tag = poiCategoryTags[categoryId];
+  if (!tag) {
+    sendJson(res, 400, { error: 'Nieznana kategoria.' });
     return;
   }
   try {
-    const upstreamRes = await fetch('https://api.openrouteservice.org/v2/pois', {
+    const key = Object.keys(tag)[0];
+    const value = tag[key];
+    const [west, south, east, north] = bbox.split(',').map(Number);
+    const query = `[out:json][timeout:15];(node["${key}"="${value}"](${south},${west},${north},${east});way["${key}"="${value}"](${south},${west},${north},${east}););out center 10;`;
+    const upstreamRes = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
-      headers: {
-        Authorization: openRouteServiceApiKey,
-        'Content-Type': 'application/json',
-        'User-Agent': 'MojaMapa/1.0'
-      },
-      body: JSON.stringify({
-        request: 'pois',
-        geometry: { bbox: [[nums[0], nums[1]], [nums[2], nums[3]]] },
-        filter_category_ids: [Number(categoryId)],
-        sort_by: 'distance'
-      })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'MojaMapa/1.0' },
+      body: new URLSearchParams({ data: query })
     });
-    const payload = await upstreamRes.json();
-    sendJson(res, upstreamRes.ok ? 200 : upstreamRes.status,
-      upstreamRes.ok ? payload : { error: 'Wyszukiwanie POI jest chwilowo niedostępne.' });
+    const data = await upstreamRes.json();
+    if (!upstreamRes.ok) {
+      sendJson(res, 502, { error: 'Wyszukiwanie POI jest chwilowo niedostępne.' });
+      return;
+    }
+    const features = (data.elements || []).map((el) => {
+      const tags = el.tags || {};
+      const lat = el.lat ?? el.center?.lat ?? 0;
+      const lon = el.lon ?? el.center?.lon ?? 0;
+      const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+        properties: {
+          osm_id: el.id,
+          id: `overpass-${el.id}`,
+          name: tags.name || tags.brand || 'Miejsce',
+          street,
+          housenumber: tags['addr:housenumber'] || '',
+          locality: tags['addr:city'] || tags['addr:place'] || '',
+          distance: 0,
+          category_ids: [0]
+        }
+      };
+    });
+    sendJson(res, 200, { features, type: 'FeatureCollection' });
   } catch {
     sendJson(res, 502, { error: 'Nie udało się połączyć z usługą POI.' });
   }
