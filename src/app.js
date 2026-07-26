@@ -1023,6 +1023,7 @@ class App extends React.Component {
       tripComplete: false,
       voiceStudioOpen: false,
       voiceClips: {},
+      voiceCatalog: null,
       recordingPhraseId: null,
       voiceMessage: '',
       locationStatus: 'idle',
@@ -1704,6 +1705,12 @@ class App extends React.Component {
   }
 
   openVoiceStudio() {
+    if (!this.state.voiceCatalog) {
+      fetch('./audio/default-voice/catalog.json')
+        .then((r) => r.json())
+        .then((catalog) => this.setState({ voiceCatalog: catalog }))
+        .catch(() => {});
+    }
     this.setState({ voiceStudioOpen: true, voiceMessage: '', menuOpen: false }, () => {
       if (this.voiceCloseButton) {
         this.voiceCloseButton.focus();
@@ -2470,8 +2477,8 @@ class App extends React.Component {
       h('button', { className: 'app-menu-item', type: 'button', onClick: this.openVoiceStudio },
         h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'mic', size: 18 })),
         h('span', null,
-          h('strong', null, 'Studio głosu'),
-          h('small', null, 'Nagraj i odsłuchaj komunikaty')
+          h('strong', null, 'Biblioteka dźwięków'),
+          h('small', null, 'Odsłuchaj wszystkie komunikaty')
         )
       ),
       h('button', { className: 'app-menu-item', type: 'button', onClick: () => this.setState({ settingsOpen: true, menuOpen: false }) },
@@ -2552,96 +2559,66 @@ class App extends React.Component {
       return null;
     }
 
-    const clipCount = Object.keys(this.state.voiceClips).length;
+    const catalog = this.state.voiceCatalog;
+    const categoryLabels = {
+      maneuver: 'Manewry', arrival: 'Przyjazd', distance: 'Odległości',
+      roundabout: 'Ronda', direction: 'Kierunki', status: 'Status',
+      route: 'Trasa', safety: 'Bezpieczeństwo', sequence: 'Sekwencje'
+    };
+
     return h('div', {
-      className: 'voice-studio-backdrop',
+      className: 'soundlib-backdrop',
       role: 'presentation',
       onMouseDown: (event) => {
-        if (event.target === event.currentTarget) {
-          this.closeVoiceStudio();
-        }
+        if (event.target === event.currentTarget) this.closeVoiceStudio();
       }
     },
     h('section', {
-      className: 'voice-studio-dialog',
+      className: 'soundlib-dialog',
       role: 'dialog',
       'aria-modal': 'true',
-      'aria-labelledby': 'voice-studio-title',
+      'aria-labelledby': 'soundlib-title',
       onMouseDown: (event) => event.stopPropagation()
     },
-    h('header', { className: 'voice-studio-header' },
+    h('header', { className: 'soundlib-header' },
       h('div', null,
-        h('p', { className: 'eyebrow' }, 'Prywatnie i lokalnie'),
-        h('h2', { id: 'voice-studio-title' }, 'Studio głosu'),
-        h('p', null, 'Nagraj krótkie wskazówki. Pliki pozostają wyłącznie w tej przeglądarce.')
+        h('h2', { id: 'soundlib-title' }, 'Biblioteka dźwięków'),
+        h('p', null, catalog ? `${catalog.clips.length} komunikaty głosowe` : '')
       ),
       h('button', {
         ref: (element) => { this.voiceCloseButton = element; },
-        className: 'studio-close-button',
+        className: 'soundlib-close',
         type: 'button',
         onClick: this.closeVoiceStudio,
-        'aria-label': 'Zamknij studio głosu'
+        'aria-label': 'Zamknij'
       }, h(Icon, { name: 'close', size: 20 }))
     ),
-    h('div', { className: 'voice-studio-progress' },
-      h('span', null, `${clipCount} z ${VOICE_PHRASES.length} gotowe`),
-      h('div', { className: 'voice-progress-track', 'aria-hidden': true },
-        h('span', { style: { width: `${(clipCount / VOICE_PHRASES.length) * 100}%` } })
-      )
-    ),
-    h('div', { className: 'voice-phrase-list' },
-      VOICE_PHRASES.map((phrase) => {
-        const clipReady = Boolean(this.state.voiceClips[phrase.id]);
-        const isRecording = this.state.recordingPhraseId === phrase.id;
-        const recordingAnotherPhrase = Boolean(this.state.recordingPhraseId) && !isRecording;
-
-        return h('article', {
-          className: `voice-phrase-row${clipReady ? ' is-ready' : ''}${isRecording ? ' is-recording' : ''}`,
-          key: phrase.id
-        },
-        h('span', { className: 'phrase-icon' }, h(Icon, { name: phrase.id, size: 21 })),
-        h('span', { className: 'phrase-copy' },
-          h('strong', null, phrase.label),
-          h('small', null, isRecording ? 'Mów teraz…' : phrase.description)
-        ),
-        h('span', { className: 'phrase-actions' },
-          h('button', {
-            className: 'phrase-action-button',
-            type: 'button',
-            onClick: () => this.playVoiceClip(phrase.id).catch(() => {
-              this.setState({ voiceMessage: 'Nie udało się odtworzyć nagrania.' });
-            }),
-            disabled: Boolean(this.state.recordingPhraseId),
-            'aria-label': `Odtwórz: ${phrase.label}`
-          }, h(Icon, { name: 'volume', size: 18 })),
-          h('button', {
-            className: `record-button${isRecording ? ' is-recording' : ''}`,
-            type: 'button',
-            onClick: () => isRecording
-              ? this.stopVoiceRecording()
-              : this.startVoiceRecording(phrase.id),
-            disabled: recordingAnotherPhrase
-          }, isRecording ? 'Zatrzymaj' : clipReady ? 'Nagraj ponownie' : 'Nagraj'),
-          clipReady ? h('button', {
-            className: 'phrase-action-button is-danger',
-            type: 'button',
-            onClick: () => this.deleteVoiceClip(phrase.id),
-            disabled: Boolean(this.state.recordingPhraseId),
-            'aria-label': `Usuń nagranie: ${phrase.label}`
-          }, h(Icon, { name: 'trash', size: 17 })) : null
-        ));
-      })
-    ),
-    h('div', { className: 'voice-studio-footer' },
-      h('p', { className: 'privacy-note' },
-        h(Icon, { name: 'mic', size: 15 }),
-        h('span', null, 'Nagrania nie są przesyłane na serwer i możesz je usunąć w każdej chwili.')
+    !catalog
+      ? h('p', { className: 'soundlib-loading' }, 'Ładowanie…')
+      : h('div', { className: 'soundlib-groups' },
+        Object.entries(categoryLabels).map(([catKey, catLabel]) => {
+          const clips = catalog.clips.filter((c) => c.category === catKey);
+          if (clips.length === 0) return null;
+          return h('div', { className: 'soundlib-group', key: catKey },
+            h('h3', { className: 'soundlib-group-title' }, `${catLabel} (${clips.length})`),
+            clips.map((clip) => h('div', { className: 'soundlib-row', key: clip.id },
+              h('span', { className: 'soundlib-copy' },
+                h('strong', null, clip.text),
+                h('small', null, clip.id)
+              ),
+              h('button', {
+                className: 'soundlib-play',
+                type: 'button',
+                onClick: () => this.playVoiceClip(clip.id).catch(() => {}),
+                'aria-label': `Odtwórz: ${clip.text}`
+              }, h(Icon, { name: 'play', size: 16 }))
+            ))
+          );
+        })
       ),
-      h('p', { className: 'voice-message', role: 'status', 'aria-live': 'polite' },
-        this.state.voiceMessage || 'Najlepiej nagrywać w cichym miejscu, trzymając telefon blisko.'
-      ),
-      h('button', { className: 'studio-done-button', type: 'button', onClick: this.closeVoiceStudio }, 'Gotowe')
-    )
+    this.state.voiceMessage
+      ? h('p', { className: 'soundlib-message', role: 'status' }, this.state.voiceMessage)
+      : null
     ));
   }
 

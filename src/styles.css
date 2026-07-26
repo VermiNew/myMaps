@@ -2038,6 +2038,140 @@ input:focus-visible {
   background: #eaecea;
 }
 
+.soundlib-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.soundlib-dialog {
+  width: min(480px, calc(100% - 32px));
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.soundlib-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+}
+
+.soundlib-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.soundlib-header p {
+  margin: 4px 0 0;
+  color: #858d98;
+  font-size: 13px;
+}
+
+.soundlib-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #8a929c;
+  background: #f0f2ef;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.soundlib-loading {
+  padding: 40px 20px;
+  text-align: center;
+  color: #858d98;
+}
+
+.soundlib-groups {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+}
+
+.soundlib-group + .soundlib-group {
+  margin-top: 16px;
+}
+
+.soundlib-group-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #858d98;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.soundlib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 9px;
+}
+
+.soundlib-row:nth-child(odd) {
+  background: #f6f8f6;
+}
+
+.soundlib-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.soundlib-copy strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.soundlib-copy small {
+  color: #9aa2ac;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.soundlib-play {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--blue);
+  background: #eaf0fa;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.soundlib-play:hover {
+  background: #d4e0f4;
+}
+
+.soundlib-message {
+  padding: 10px 20px;
+  margin: 0;
+  color: #a04742;
+  font-size: 12px;
+  text-align: center;
+}
+
 .settings-backdrop {
   position: fixed;
   z-index: 200;
