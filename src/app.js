@@ -480,6 +480,7 @@ function Icon({ name, size = 20 }) {
     layers: h('g', null,
       h('path', { d: 'M2 12l10-8 10 8M2 17l10-8 10 8M2 22l10-8 10 8' })
     ),
+    star: h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }),
     trash: h('g', null,
       h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
       h('path', { d: 'M10 11v5M14 11v5' })
@@ -912,6 +913,7 @@ class App extends React.Component {
       travelMode: 'car',
       avoidedFeatures: ['tollways', 'ferries'],
       recentDestinations: readStoredPlaces(PLACE_HISTORY_KEY),
+      favoritePlaces: readStoredPlaces(FAVORITE_PLACES_KEY),
       navigationActive: false,
       navigationPaused: false,
       stepIndex: 0,
@@ -1103,6 +1105,21 @@ class App extends React.Component {
     }), () => {
       writeStoredPlaces(PLACE_HISTORY_KEY, this.state.recentDestinations);
       this.calculateRoute();
+    });
+  }
+
+  toggleFavorite(destination, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    this.setState((state) => {
+      const exists = state.favoritePlaces.some((p) => p.id === destination.id);
+      const favoritePlaces = exists
+        ? state.favoritePlaces.filter((p) => p.id !== destination.id)
+        : [destination, ...state.favoritePlaces].slice(0, 8);
+      writeStoredPlaces(FAVORITE_PLACES_KEY, favoritePlaces);
+      return { favoritePlaces };
     });
   }
 
@@ -2041,10 +2058,49 @@ class App extends React.Component {
             h('strong', null, recentDestination.name),
             h('small', null, recentDestination.address)
           ),
+          h('button', {
+            className: 'favorite-star',
+            type: 'button',
+            onClick: (event) => this.toggleFavorite(recentDestination, event),
+            'aria-label': this.state.favoritePlaces.some((p) => p.id === recentDestination.id) ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'
+          }, h(Icon, { name: 'star', size: 16 })),
           h(Icon, { name: 'arrow', size: 18 })
           ))
           : h('p', { className: 'empty-recent' }, 'Wybrane miejsca pojawią się tutaj.')
       ),
+      this.state.favoritePlaces.length > 0
+        ? h('section', { className: 'recent-section' },
+          h('div', { className: 'section-heading' },
+            h('h2', null, 'Ulubione'),
+            h('button', {
+              type: 'button',
+              onClick: () => {
+                writeStoredPlaces(FAVORITE_PLACES_KEY, []);
+                this.setState({ favoritePlaces: [] });
+              }
+            }, 'Wyczyść')
+          ),
+          this.state.favoritePlaces.map((fav) => h('button', {
+            className: 'place-card',
+            key: fav.id,
+            type: 'button',
+            onClick: () => this.selectDestination(fav)
+          },
+          h('span', { className: 'place-icon' }, h(Icon, { name: 'star', size: 18 })),
+          h('span', { className: 'place-copy' },
+            h('strong', null, fav.name),
+            h('small', null, fav.address)
+          ),
+          h('button', {
+            className: 'favorite-star is-active',
+            type: 'button',
+            onClick: (event) => this.toggleFavorite(fav, event),
+            'aria-label': 'Usuń z ulubionych'
+          }, h(Icon, { name: 'star', size: 16 })),
+          h(Icon, { name: 'arrow', size: 18 })
+          ))
+        )
+        : null,
       h('section', { className: 'poi-section' },
         h('div', { className: 'section-heading' },
           h('h2', null, 'Miejsca w okolicy'),

@@ -1789,6 +1789,29 @@ input:focus-visible {
   transform: scale(1.25);
 }
 
+.favorite-star {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #b5bbc2;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.favorite-star.is-active,
+.favorite-star:hover {
+  color: #e8ab3a;
+}
+
+.favorite-star:hover {
+  background: rgba(232, 171, 58, 0.1);
+}
+
 .click-marker {
   width: 20px;
   height: 20px;
