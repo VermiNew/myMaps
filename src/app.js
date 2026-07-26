@@ -2202,9 +2202,9 @@ class App extends React.Component {
       }, h(Icon, { name: 'close', size: 20 }))
     ),
     h('div', { className: 'voice-studio-progress' },
-      h('span', null, '4 z 4 gotowe'),
+      h('span', null, `${clipCount} z ${VOICE_PHRASES.length} gotowe`),
       h('div', { className: 'voice-progress-track', 'aria-hidden': true },
-        h('span', { style: { width: '100%' } })
+        h('span', { style: { width: `${(clipCount / VOICE_PHRASES.length) * 100}%` } })
       )
     ),
     h('div', { className: 'voice-phrase-list' },
