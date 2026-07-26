@@ -54,6 +54,31 @@ function formatArrivalTime(seconds) {
   });
 }
 
+const SASSY_PHRASES = {
+  straight: ['Prosto, jak beret.', 'Prosto, przed siebie, nie śpij.', 'Prosto. Tak długo, aż coś się zmieni.'],
+  left: ['W lewo, a gdzie by indziej.', 'Lewo, ale bez pośpiechu.', 'Skręć w lewo, jeśli potrafisz.'],
+  right: ['W prawo, z sensem.', 'Prawa strona. No, ruszaj!', 'W prawo albo i nie — jak chcesz.'],
+  'sharp left': ['Ostro w lewo, nie bądź cepem.', 'W lewo, ale konkretnie!', 'Lewo na ostro, jak na autostradzie.'],
+  'sharp right': ['Ostro w prawo, patrz na drogę!', 'W prawo, zdecydowanie.', 'Prawy ostro, panie kierowco.'],
+  'slight left': ['Troszeczkę w lewo, z wyczuciem.', 'Delikatnie w lewo, nie śpiesz się.', 'Leciutko w lewo, tak z sensem.'],
+  'slight right': ['Drobne w prawo, bez fajerwerków.', 'W prawo, tylko troszkę.', 'Maluśko w prawo.'],
+  uturn: ['Zawracamy. No pięknie.', 'Zawróć, jeśli potrafisz.', 'No i trzeba zawracać. Brawo my.'],
+  arrive: ['No i jesteś. Mówiłem, że trafisz.', 'Gratulacje, dojechałeś. Kto był kierowcą?', 'Cel osiągnięty, możesz wysiąść.'],
+  depart: ['No to jedziemy z koksem!', 'Ruszamy, panie kierowco!', 'Startujemy, trzymaj się!'],
+  roundabout: ['Rondo. Patrz którędy jedziesz!', 'Rondo — nie daj się zrobić w balona.', 'Rondo. Pamiętaj o kierunkowskazach.'],
+  default: ['Panie, a gdzie to Pan jedzie? Patrz Pan na drogę!', 'No jedź, tak jak pokazuje.', 'Kieruj się dalej, a będzie dobrze.']
+};
+
+function pickRandomPhrase(phrases) {
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
+function getSassyInstruction(maneuver, sassyMode) {
+  if (!sassyMode) return maneuver.instruction;
+  const list = SASSY_PHRASES[maneuver.type] || SASSY_PHRASES.default;
+  return pickRandomPhrase(list);
+}
+
 function classifyManeuver(step, isLast) {
   if (isLast || step.type === 10) return { type: 'arrive', voiceId: 'arrive' };
   const roundaboutExits = [
@@ -483,6 +508,10 @@ function Icon({ name, size = 20 }) {
     moon: h('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z' }),
     plus: h('path', { d: 'M12 5v14M5 12h14' }),
     star: h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }),
+    gear: h('g', null,
+      h('path', { d: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z' }),
+      h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z' })
+    ),
     trash: h('g', null,
       h('path', { d: 'M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13' }),
       h('path', { d: 'M10 11v5M14 11v5' })
@@ -888,7 +917,7 @@ class MapCanvas extends React.Component {
           })),
           h('span', { className: 'instruction-copy' },
             h('small', null, tripComplete ? 'Dotarłeś na miejsce' : currentManeuver.distance),
-            h('strong', null, tripComplete ? destination.name : currentManeuver.instruction)
+            h('strong', null, tripComplete ? destination.name : getSassyInstruction(currentManeuver, this.state.sassyMode))
           )
         )
         : null,
@@ -1009,6 +1038,8 @@ class App extends React.Component {
       poiStatus: 'idle',
       poiMessage: '',
       mapDimmed: false,
+      settingsOpen: false,
+      sassyMode: false,
       clickedLocation: null,
       clickedLocationName: '',
       clickedLocationStatus: 'idle',
@@ -2382,14 +2413,14 @@ class App extends React.Component {
           },
           h('span', { className: 'maneuver-list-icon' }, h(Icon, { name: maneuver.type, size: 20 })),
           h('span', { className: 'maneuver-copy' },
-            h('strong', null, maneuver.instruction),
+            h('strong', null, getSassyInstruction(maneuver, this.state.sassyMode)),
             h('small', null, maneuver.distance)
           )
           )),
         !this.state.tripComplete
           ? h('p', { className: 'current-voice-line', 'aria-live': 'polite' },
             h(Icon, { name: 'mic', size: 15 }),
-            h('span', null, `Teraz: ${currentManeuver.instruction}`)
+            h('span', null, `Teraz: ${getSassyInstruction(currentManeuver, this.state.sassyMode)}`)
           )
           : null
       )
@@ -2443,6 +2474,13 @@ class App extends React.Component {
           h('small', null, 'Nagraj i odsłuchaj komunikaty')
         )
       ),
+      h('button', { className: 'app-menu-item', type: 'button', onClick: () => this.setState({ settingsOpen: true, menuOpen: false }) },
+        h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'gear', size: 18 })),
+        h('span', null,
+          h('strong', null, 'Ustawienia'),
+          h('small', null, 'Tryb nawigacji, opcje')
+        )
+      ),
       navigationMode
         ? h('button', { className: 'app-menu-item', type: 'button', onClick: this.returnToPlanner },
           h('span', { className: 'menu-item-icon' }, h(Icon, { name: 'stop', size: 17 })),
@@ -2461,6 +2499,50 @@ class App extends React.Component {
       h('div', { className: 'app-menu-note' },
         h(Icon, { name: 'route', size: 15 }),
         h('span', null, 'Trasy i czasy są przykładowe. Nagrania pozostają na urządzeniu.')
+      )
+    );
+  }
+
+  renderSettingsPanel() {
+    if (!this.state.settingsOpen) {
+      return null;
+    }
+    return h('div', {
+      className: 'settings-backdrop',
+      role: 'presentation',
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) {
+          this.setState({ settingsOpen: false });
+        }
+      }
+    },
+      h('div', { className: 'settings-panel', role: 'dialog', 'aria-label': 'Ustawienia' },
+        h('div', { className: 'settings-header' },
+          h('strong', null, 'Ustawienia'),
+          h('button', {
+            className: 'icon-button',
+            type: 'button',
+            onClick: () => this.setState({ settingsOpen: false }),
+            'aria-label': 'Zamknij ustawienia'
+          }, h(Icon, { name: 'close', size: 20 }))
+        ),
+        h('div', { className: 'settings-body' },
+          h('label', { className: 'settings-row' },
+            h('div', null,
+              h('strong', null, 'Tryb niegrzecznej nawigacji'),
+              h('small', null, 'Zabawne komunikaty zamiast standardowych poleceń')
+            ),
+            h('button', {
+              className: `toggle${this.state.sassyMode ? ' is-on' : ''}`,
+              type: 'button',
+              role: 'switch',
+              'aria-checked': this.state.sassyMode,
+              onClick: () => this.setState((s) => ({ sassyMode: !s.sassyMode }))
+            },
+              h('span', { className: 'toggle-knob' })
+            )
+          )
+        )
       )
     );
   }
@@ -2846,6 +2928,7 @@ class App extends React.Component {
         }),
         this.renderMapFooter(destination, maneuvers)
       ),
+      this.renderSettingsPanel(),
       this.renderVoiceStudio()
     );
   }
