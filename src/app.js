@@ -3,6 +3,7 @@
 const React = window.React;
 const ReactDOM = window.ReactDOM;
 const h = React.createElement;
+const MAP_STYLE_LIST = ['streets', 'satellite', 'dark'];
 const MAP_STYLES = {
   streets: 'https://tiles.openfreemap.org/styles/positron',
   satellite: {
@@ -21,7 +22,8 @@ const MAP_STYLES = {
     layers: [
       { id: 'satellite', type: 'raster', source: 'esri-satellite', minzoom: 0, maxzoom: 22 }
     ]
-  }
+  },
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 };
 const DEFAULT_MAP_STYLE = 'streets';
 const DEFAULT_ORIGIN = [21.0374, 52.2518];
@@ -511,8 +513,9 @@ class MapCanvas extends React.Component {
     this.destinationMarker = null;
     this.poiMarkers = [];
     this.clickMarker = null;
-    this.state = { mapError: false };
+    this.state = { mapError: false, bearing: 0, pitch: 0 };
     this.fitMap = this.fitMap.bind(this);
+    this.resetNorth = this.resetNorth.bind(this);
   }
 
   componentDidMount() {
@@ -525,7 +528,6 @@ class MapCanvas extends React.Component {
         zoom: 11.5,
         attributionControl: true
       });
-      this.map.dragRotate.disable();
       this.map.touchZoomRotate.disableRotation();
       this.map.once('load', () => {
         this.updateMarkers();
@@ -534,6 +536,13 @@ class MapCanvas extends React.Component {
       });
       this.map.on('click', (event) => {
         this.props.onMapClick?.([event.lngLat.lng, event.lngLat.lat]);
+      });
+      this.map.on('move', () => {
+        const bearing = this.map.getBearing();
+        const pitch = this.map.getPitch();
+        if (bearing !== this.state.bearing || pitch !== this.state.pitch) {
+          this.setState({ bearing, pitch });
+        }
       });
       this.map.on('error', (event) => {
         if (!event.error || !this.map.loaded()) {
@@ -657,6 +666,11 @@ class MapCanvas extends React.Component {
       element: this.createMarker('map-destination-marker', `Cel: ${this.props.destination.name}`),
       anchor: 'bottom'
     }).setLngLat(this.props.destination.coordinates).addTo(this.map);
+  }
+
+  resetNorth() {
+    if (!this.map) return;
+    this.map.easeTo({ bearing: 0, pitch: 0, duration: 480 });
   }
 
   removePoiMarkers() {
@@ -816,17 +830,21 @@ class MapCanvas extends React.Component {
         : null,
         h('div', { className: 'map-toolbar' },
         h('button', {
-          className: `map-tool${mapStyle === 'satellite' ? ' is-active' : ''}`,
+          className: `map-tool${mapStyle !== 'streets' ? ' is-active' : ''}`,
           type: 'button',
           onClick: onMapStyleChange,
-          'aria-label': 'Zmień styl mapy'
+          'aria-label': `Styl: ${mapStyle === 'dark' ? 'ciemny' : mapStyle === 'satellite' ? 'satelita' : 'ulice'}`
         }, h(Icon, { name: 'layers' })),
         h('button', {
-          className: `map-tool${mapZoom !== 1 ? ' is-active' : ''}`,
+          className: `map-tool${this.state.bearing !== 0 || this.state.pitch !== 0 ? ' is-active' : ''}`,
           type: 'button',
-          onClick: this.fitMap,
-          'aria-label': 'Przywróć widok całej trasy'
-        }, h(Icon, { name: 'compass' })),
+          onClick: this.resetNorth,
+          'aria-label': 'Resetuj północ i pochylenie'
+        },
+          h('span', {
+            style: { display: 'block', transform: `rotate(${-this.state.bearing}deg)`, transition: 'transform 240ms ease' }
+          }, h(Icon, { name: 'compass' }))
+        ),
         h('div', { className: 'zoom-group' },
           h('button', {
             className: 'map-tool',
@@ -845,13 +863,31 @@ class MapCanvas extends React.Component {
         ),
         h('span', { className: 'zoom-status', 'aria-live': 'polite' }, `${Math.round(mapZoom * 100)}%`)
       ),
+      h('div', { className: 'tilt-group', 'aria-label': 'Pochylenie mapy' },
+        h('button', {
+          className: 'map-tool',
+          type: 'button',
+          onClick: () => this.map?.easeTo({ pitch: Math.min(this.state.pitch + 15, 60), duration: 240 }),
+          disabled: this.state.pitch >= 60,
+          'aria-label': 'Pochyl bardziej'
+        }, '⌄'),
+        h('button', {
+          className: 'map-tool',
+          type: 'button',
+          onClick: () => this.map?.easeTo({ pitch: Math.max(this.state.pitch - 15, 0), duration: 240 }),
+          disabled: this.state.pitch <= 0,
+          'aria-label': 'Wypoziomuj'
+        }, '⌃')
+      ),
       locationStatus === 'ready' && !navigationActive && !tripComplete
         ? h('div', { className: 'location-confirmation' },
           h(Icon, { name: 'location', size: 15 }),
           h('span', null, 'Twoja lokalizacja')
         )
         : null,
-      h('div', { className: 'map-credit' }, 'Dane © OpenStreetMap · OpenFreeMap')
+      h('div', { className: 'map-credit' }, mapStyle === 'dark'
+        ? '© CARTO · OpenStreetMap'
+        : mapStyle === 'satellite' ? '© Esri · OpenStreetMap' : 'Dane © OpenStreetMap · OpenFreeMap')
     );
   }
 }
@@ -1436,9 +1472,11 @@ class App extends React.Component {
   }
 
   toggleMapStyle() {
-    this.setState((state) => ({
-      mapStyle: state.mapStyle === 'streets' ? 'satellite' : 'streets'
-    }));
+    this.setState((state) => {
+      const currentIndex = MAP_STYLE_LIST.indexOf(state.mapStyle);
+      const nextIndex = (currentIndex + 1) % MAP_STYLE_LIST.length;
+      return { mapStyle: MAP_STYLE_LIST[nextIndex] };
+    });
   }
 
   async loadVoiceClips() {

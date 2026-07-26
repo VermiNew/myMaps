@@ -1142,6 +1142,25 @@ kbd {
   border-top: 1px solid #e7e8e8;
 }
 
+.tilt-group {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(23, 34, 52, 0.1);
+  border-radius: 13px;
+  box-shadow: 0 8px 24px rgba(23, 34, 52, 0.08);
+}
+
+.tilt-group .map-tool {
+  width: 43px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 18px;
+  line-height: 1;
+}
+
 .map-credit {
   position: absolute;
   right: 16px;
