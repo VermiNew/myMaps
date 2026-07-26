@@ -4,9 +4,11 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { loadEnvFile } from 'node:process';
 
-const [directory = 'public', rawPort = '4173'] = process.argv.slice(2);
-const root = join(process.cwd(), directory);
-const port = Number(rawPort);
+const args = process.argv.slice(2);
+const portIndex = args.indexOf('--port');
+const dir = args[0] || 'public';
+const root = join(process.cwd(), dir);
+const port = Number(portIndex !== -1 ? args[portIndex + 1] : (args[1] || '4173'));
 try {
   loadEnvFile(join(process.cwd(), '.env.local'));
 } catch (error) {
@@ -283,5 +285,5 @@ createServer(async (request, response) => {
     response.end('Nie znaleziono zasobu.');
   }
 }).listen(port, '127.0.0.1', () => {
-  console.log(`Serving ${directory} at http://127.0.0.1:${port}`);
+  console.log(`Serving ${dir} at http://127.0.0.1:${port}`);
 });
