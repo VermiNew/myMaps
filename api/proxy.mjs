@@ -122,10 +122,18 @@ async function handleReverseGeocode(url, res) {
 }
 
 function osrmManeuverType(type, modifier) {
-  if (type === 'depart') return 1;
+  if (type === 'depart') return 11;
   if (type === 'arrive') return 10;
   if (type === 'roundabout' || type === 'rotary') return 7;
   if (type === 'exit roundabout' || type === 'exit rotary') return 8;
+  if (type === 'fork' && modifier === 'left') return 12;
+  if (type === 'fork' && modifier === 'right') return 13;
+  if (type === 'merge' && modifier === 'left') return 12;
+  if (type === 'merge' && modifier === 'right') return 13;
+  if (type === 'end of road') {
+    const endMap = { left: 0, right: 1, straight: 6 };
+    return endMap[modifier] ?? 6;
+  }
   const modMap = { left: 0, right: 1, 'sharp left': 2, 'sharp right': 3, 'slight left': 4, 'slight right': 5, straight: 6, uturn: 9 };
   return modMap[modifier] ?? 11;
 }
@@ -136,23 +144,22 @@ function buildOsrmUrl(profile, coordinates) {
 }
 
 function osrmInstruction(type, modifier, name, exit) {
-  const street = name || 'niej';
-  if (type === 'depart') return `Kieruj się na ${street}`;
+  const part = name ? ` — ${name}` : '';
+  if (type === 'depart') return 'Kieruj się w wyznaczonym kierunku' + part;
   if (type === 'arrive') return 'Dotarłeś do celu';
-  if (type === 'roundabout' || type === 'rotary') return exit ? `Wjazd na rondo, ${exit}. zjazd` : 'Wjedź na rondo';
-  if (type === 'exit roundabout' || type === 'exit rotary') return 'Zjazd z ronda';
+  if (type === 'roundabout' || type === 'rotary') return exit ? `Wjazd na rondo — ${exit}. zjazd` : 'Wjedź na rondo';
+  if (type === 'exit roundabout' || type === 'exit rotary') return 'Zjazd z ronda' + part;
   const modPhrases = {
-    'left': `Skręć w lewo w ${street}`,
-    'right': `Skręć w prawo w ${street}`,
-    'sharp left': `Skręć ostro w lewo w ${street}`,
-    'sharp right': `Skręć ostro w prawo w ${street}`,
-    'slight left': `Skręć delikatnie w lewo w ${street}`,
-    'slight right': `Skręć delikatnie w prawo w ${street}`,
-    'straight': `Jedź prosto na ${street}`,
-    'uturn': `Zawróć na ${street}`
+    'left': 'Skręć w lewo',
+    'right': 'Skręć w prawo',
+    'sharp left': 'Skręć ostro w lewo',
+    'sharp right': 'Skręć ostro w prawo',
+    'slight left': 'Skręć delikatnie w lewo',
+    'slight right': 'Skręć delikatnie w prawo',
+    'straight': 'Jedź prosto',
+    'uturn': 'Zawróć'
   };
-  if (modPhrases[modifier]) return modPhrases[modifier];
-  return `Kontynuuj na ${street}`;
+  return (modPhrases[modifier] || 'Kontynuuj') + part;
 }
 
 function buildOsrmStep(step, geometry) {
