@@ -890,14 +890,14 @@ class MapCanvas extends React.Component {
             className: 'map-tool',
             type: 'button',
             onClick: onZoomIn,
-            disabled: mapZoom >= 1.3,
+            disabled: mapZoom >= 3,
             'aria-label': 'Powiększ mapę'
           }, '+'),
           h('button', {
             className: 'map-tool',
             type: 'button',
             onClick: onZoomOut,
-            disabled: mapZoom <= 0.85,
+            disabled: mapZoom <= 0.3,
             'aria-label': 'Pomniejsz mapę'
           }, '−')
         ),
@@ -1022,6 +1022,8 @@ class App extends React.Component {
     this.stopNavigation = this.stopNavigation.bind(this);
     this.toggleNavigationPause = this.toggleNavigationPause.bind(this);
     this.toggleRoutePreference = this.toggleRoutePreference.bind(this);
+    this.toggleMapStyle = this.toggleMapStyle.bind(this);
+    this.toggleMapDim = this.toggleMapDim.bind(this);
   }
 
   componentDidMount() {
@@ -1460,7 +1462,7 @@ class App extends React.Component {
 
   adjustMapZoom(delta) {
     this.setState((state) => ({
-      mapZoom: Math.min(1.3, Math.max(0.85, Number((state.mapZoom + delta).toFixed(2))))
+      mapZoom: Math.min(3, Math.max(0.3, Number((state.mapZoom + delta).toFixed(2))))
     }));
   }
 
