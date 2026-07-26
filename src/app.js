@@ -514,6 +514,7 @@ class MapCanvas extends React.Component {
     this.map = null;
     this.originMarker = null;
     this.destinationMarker = null;
+    this.startMarker = null;
     this.poiMarkers = [];
     this.clickMarker = null;
     this.waypointMarkers = [];
@@ -598,6 +599,9 @@ class MapCanvas extends React.Component {
     if (previousProps.waypoints !== this.props.waypoints) {
       this.updateWaypointMarkers();
     }
+    if (previousProps.startLocation !== this.props.startLocation) {
+      this.updateStartMarker();
+    }
     if (previousProps.clickedLocation !== this.props.clickedLocation) {
       this.updateClickMarker();
     }
@@ -617,6 +621,7 @@ class MapCanvas extends React.Component {
     if (this.map) {
       this.map.off('click');
     }
+    this.startMarker?.remove();
     this.originMarker?.remove();
     this.destinationMarker?.remove();
     this.removePoiMarkers();
@@ -645,11 +650,17 @@ class MapCanvas extends React.Component {
       return;
     }
     this.updateOriginMarker();
+    this.updateStartMarker();
     this.updateDestinationMarker();
   }
 
   updateOriginMarker() {
     if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    if (this.props.startLocation) {
+      this.originMarker?.remove();
+      this.originMarker = null;
       return;
     }
     if (!this.originMarker) {
@@ -663,6 +674,20 @@ class MapCanvas extends React.Component {
     element.classList.toggle('is-navigating', this.props.navigationActive);
     const heading = this.props.userCoordinates?.heading;
     element.style.setProperty('--heading', `${Number.isFinite(heading) ? heading : 0}deg`);
+  }
+
+  updateStartMarker() {
+    if (!this.map || !this.map.loaded()) {
+      return;
+    }
+    this.startMarker?.remove();
+    this.startMarker = null;
+    if (this.props.startLocation) {
+      this.startMarker = new window.maplibregl.Marker({
+        element: this.createMarker('map-start-marker', 'Punkt startowy'),
+        anchor: 'bottom'
+      }).setLngLat(this.props.startLocation).addTo(this.map);
+    }
   }
 
   updateDestinationMarker() {
@@ -807,7 +832,9 @@ class MapCanvas extends React.Component {
         (routeBounds, coordinate) => routeBounds.extend(coordinate),
         new window.maplibregl.LngLatBounds(routeCoordinates[0], routeCoordinates[0])
       )
-      : new window.maplibregl.LngLatBounds(this.getOrigin(), this.props.destination.coordinates);
+      : this.props.startLocation
+        ? new window.maplibregl.LngLatBounds(this.props.startLocation, this.props.destination.coordinates)
+        : new window.maplibregl.LngLatBounds(this.getOrigin(), this.props.destination.coordinates);
     this.map.fitBounds(bounds, {
       padding: { top: 110, right: 100, bottom: 150, left: 100 },
       maxZoom: 14,
@@ -981,7 +1008,9 @@ class App extends React.Component {
       mapDimmed: false,
       clickedLocation: null,
       clickedLocationName: '',
-      clickedLocationStatus: 'idle'
+      clickedLocationStatus: 'idle',
+      startLocation: null,
+      startLocationName: ''
     };
     this.searchInput = null;
     this.voiceCloseButton = null;
@@ -1033,6 +1062,7 @@ class App extends React.Component {
     document.addEventListener('mousedown', this.handleDocumentPointerDown);
     this.loadVoiceClips();
     this.registerServiceWorker();
+    this.startLocationWatch();
     const sharedRoute = readSharedRoute();
     if (sharedRoute) {
       this.setState({
@@ -1197,10 +1227,13 @@ class App extends React.Component {
     }
     this.routeRequest?.abort();
     this.routeRequest = new AbortController();
-    const routeOrigin = startCoordinates || this.state.userCoordinates;
-    const start = routeOrigin
-      ? [routeOrigin.longitude, routeOrigin.latitude]
-      : DEFAULT_ORIGIN;
+    const customStart = this.state.startLocation;
+    const routeOrigin = customStart || startCoordinates || this.state.userCoordinates;
+    const start = customStart
+      ? customStart
+      : routeOrigin
+        ? [routeOrigin.longitude, routeOrigin.latitude]
+        : DEFAULT_ORIGIN;
     const end = this.state.destination.coordinates;
     const routeParameters = new URLSearchParams({
       start: start.join(','),
@@ -1539,6 +1572,28 @@ class App extends React.Component {
 
   cancelMapClick() {
     this.setState({ clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle' });
+  }
+
+  setMapStartPoint() {
+    const { clickedLocation, clickedLocationName } = this.state;
+    if (!clickedLocation) return;
+    this.setState({
+      startLocation: clickedLocation,
+      startLocationName: clickedLocationName,
+      clickedLocation: null, clickedLocationName: '', clickedLocationStatus: 'idle'
+    }, () => {
+      if (this.state.destination && this.state.routeStatus === 'ready') {
+        this.calculateRoute();
+      }
+    });
+  }
+
+  clearStartPoint() {
+    this.setState({ startLocation: null, startLocationName: '' }, () => {
+      if (this.state.destination && this.state.routeStatus === 'ready') {
+        this.calculateRoute();
+      }
+    });
   }
 
   addMapLocationAsWaypoint() {
@@ -2507,6 +2562,16 @@ class App extends React.Component {
         ),
         h('div', { className: 'control-buttons' },
           h('button', {
+            className: 'secondary-control',
+            type: 'button',
+            onClick: () => this.setMapStartPoint(),
+            disabled: this.state.clickedLocationStatus === 'loading',
+            'aria-label': 'Ustaw jako punkt startowy'
+          },
+            h(Icon, { name: 'route', size: 16 }),
+            h('span', null, 'Start')
+          ),
+          h('button', {
             className: 'primary-button',
             type: 'button',
             onClick: () => this.confirmMapLocation(),
@@ -2516,7 +2581,7 @@ class App extends React.Component {
             h(Icon, { name: 'arrow', size: 17 })
           ),
           h('button', {
-            className: 'secondary-control has-text',
+            className: 'secondary-control',
             type: 'button',
             onClick: () => this.addMapLocationAsWaypoint(),
             disabled: this.state.clickedLocationStatus === 'loading',
@@ -2590,6 +2655,18 @@ class App extends React.Component {
     ].filter(Boolean).join(' · ');
 
     return h('div', { className: 'route-summary' },
+      this.state.startLocation
+        ? h('div', { className: 'start-point-row' },
+            h('span', { className: 'start-point-label' }, 'Punkt startowy'),
+            h('span', null, this.state.startLocationName || `${this.state.startLocation[1].toFixed(5)}, ${this.state.startLocation[0].toFixed(5)}`),
+            h('button', {
+              className: 'clear-start',
+              type: 'button',
+              onClick: this.clearStartPoint,
+              'aria-label': 'Usuń punkt startowy'
+            }, h(Icon, { name: 'close', size: 12 }))
+          )
+        : null,
       h('div', null,
         h('span', { className: 'summary-label' }, destination.name),
         h('strong', null, this.state.routeStatus === 'loading' ? 'Wyznaczam…' : destination.time),
@@ -2749,6 +2826,7 @@ class App extends React.Component {
           onPoiSelect: (poi) => this.selectPoiDestination(poi),
           onMapClick: this.handleMapClick,
           clickedLocation: this.state.clickedLocation,
+          startLocation: this.state.startLocation,
           waypoints: this.state.waypoints
         }),
         this.renderMapFooter(destination, maneuvers)

@@ -1971,3 +1971,69 @@ input:focus-visible {
   font-size: 11px;
   font-weight: 800;
 }
+
+.map-start-marker {
+  width: 20px;
+  height: 20px;
+  background: #1a7d3a;
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 6px;
+  box-shadow: 0 3px 12px rgba(23, 34, 52, 0.3);
+  transform: rotate(-45deg);
+}
+
+.start-point-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: #edf3ed;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.start-point-label {
+  color: #3a7d4a;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clear-start {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: auto;
+  color: #6a8272;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.clear-start:hover {
+  color: #a04742;
+  background: #dce6dc;
+}
+
+.control-buttons .secondary-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 36px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--elevated);
+  border: 1px solid #e0e2e0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.control-buttons .secondary-control:hover {
+  background: #eaecea;
+}
