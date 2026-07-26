@@ -1071,6 +1071,13 @@ class App extends React.Component {
   }
 
   async calculateRoute(startCoordinates = null) {
+    if (!navigator.onLine) {
+      this.setState({
+        routeStatus: 'error',
+        routeMessage: 'Brak połączenia z internetem. Wyznaczenie trasy będzie możliwe po przywróceniu sieci.'
+      });
+      return null;
+    }
     this.routeRequest?.abort();
     this.routeRequest = new AbortController();
     const routeOrigin = startCoordinates || this.state.userCoordinates;
@@ -2002,7 +2009,7 @@ class App extends React.Component {
           h('h2', null, 'Miejsca w okolicy'),
           h('button', {
             type: 'button',
-            onClick: () => this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle' })
+            onClick: () => this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })
           }, this.state.poiCategory ? 'Wyczyść' : '')
         ),
         h('div', { className: 'poi-grid' },
@@ -2010,7 +2017,9 @@ class App extends React.Component {
             className: `poi-chip${this.state.poiCategory === cat.id ? ' is-active' : ''}`,
             key: cat.id,
             type: 'button',
-            onClick: () => this.fetchPois(cat.id)
+            onClick: () => this.state.poiCategory === cat.id
+              ? this.setState({ poiCategory: null, poiResults: [], poiStatus: 'idle', poiMessage: '' })
+              : this.fetchPois(cat.id)
           }, cat.label))
         ),
         this.state.poiStatus === 'loading'
